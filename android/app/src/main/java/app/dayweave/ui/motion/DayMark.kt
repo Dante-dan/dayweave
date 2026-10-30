@@ -9,7 +9,16 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
@@ -49,46 +58,139 @@ object Hue {
     val Mint get() = if (Palette.dark) Color(0xFF7FE0C2) else Color(0xFF2EB98E)
 }
 
-/** 画“日”：单位坐标 0..1 映射到 size。dim 用于未选中（整体降不透明度）。 */
-fun DrawScope.drawDay(alpha: Float = 1f, light: Color = Hue.Lilac, cradle: Color = Hue.Rose, petal: Color = Hue.Blush, heart: Color = Hue.Gold) {
+/** 标志动画的一帧。全部为 1（静止的完成态）时就是静态标志。 */
+class DayFrame(
+    /** 日光弧画出的比例 0..1。 */
+    val light: Float = 1f,
+    /** 掌心出现的程度 0..1。 */
+    val cradle: Float = 1f,
+    /** 五片花瓣各自开放的程度（可以过冲）。 */
+    val bloom: FloatArray = FloatArray(5) { 1f },
+    /** 飘落的进度 0..1；为 null 表示花瓣已经躺在掌心里。 */
+    val fall: Float? = null,
+    /** 掌心被压下的位移（正值向下），接住花瓣时的回弹。 */
+    val squash: Float = 0f,
+    /** 花的微微摆动（度）。 */
+    val sway: Float = 0f,
+) {
+    companion object {
+        val Still = DayFrame()
+    }
+}
+
+/** 画“日”：单位坐标 0..1 映射到 size。alpha 用于未选中时整体降不透明度。 */
+fun DrawScope.drawDay(
+    alpha: Float = 1f,
+    light: Color = Hue.Lilac,
+    cradle: Color = Hue.Rose,
+    petal: Color = Hue.Blush,
+    heart: Color = Hue.Gold,
+    frame: DayFrame = DayFrame.Still,
+) {
     val s = size.minDimension
     val c = Offset(size.width / 2, size.height * 0.52f)
     val r = s * 0.36f
-    // 日光的轨迹：上半圆，细
-    drawArc(light, 182f, 176f, false, topLeft = c - Offset(r, r), size = Size(2 * r, 2 * r), alpha = alpha, style = Stroke(s * 0.065f, cap = StrokeCap.Round))
-    // 掌心：下半圆，中间厚两头尖的月牙
-    val cradlePath = Path().apply {
-        val n = 32
-        for (i in 0..n) {
-            val t = -0.02f + (PI.toFloat() + 0.04f) * i / n
-            val rr = r + s * 0.05f * sin(t)
-            val p = c + Offset(cos(t), sin(t)) * rr
-            if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
-        }
-        for (i in n downTo 0) {
-            val t = -0.02f + (PI.toFloat() + 0.04f) * i / n
-            val rr = r - s * 0.075f * sin(t)
-            val p = c + Offset(cos(t), sin(t)) * rr
-            lineTo(p.x, p.y)
-        }
-        close()
+    // 日光的轨迹：上半圆，细，按 frame.light 从左往右画出
+    if (frame.light > 0f) {
+        drawArc(light, 182f, 176f * frame.light, false, topLeft = c - Offset(r, r), size = Size(2 * r, 2 * r), alpha = alpha, style = Stroke(s * 0.065f, cap = StrokeCap.Round))
     }
-    drawPath(cradlePath, cradle, alpha = alpha)
-    // 掌心里的花瓣
-    val rest = c + Offset(r * 0.28f, r * 0.68f)
-    petal(rest, s * 0.26f, 72f, petal, alpha)
-    // 晨光处的花
+    // 掌心：下半圆，中间厚两头尖的月牙；接住花瓣时整体下沉 squash 再弹回
+    if (frame.cradle > 0f) {
+        val dip = Offset(0f, frame.squash * s)
+        val thick = frame.cradle
+        val cradlePath = Path().apply {
+            val n = 32
+            for (i in 0..n) {
+                val t = -0.02f + (PI.toFloat() + 0.04f) * i / n
+                val rr = r + s * 0.05f * sin(t) * thick
+                val p = c + dip * sin(t) + Offset(cos(t), sin(t)) * rr
+                if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y)
+            }
+            for (i in n downTo 0) {
+                val t = -0.02f + (PI.toFloat() + 0.04f) * i / n
+                val rr = r - s * 0.075f * sin(t) * thick
+                val p = c + dip * sin(t) + Offset(cos(t), sin(t)) * rr
+                lineTo(p.x, p.y)
+            }
+            close()
+        }
+        drawPath(cradlePath, cradle, alpha = alpha * frame.cradle.coerceIn(0f, 1f))
+    }
     val dawn = c + Offset(cos(212f * PI.toFloat() / 180f), sin(212f * PI.toFloat() / 180f)) * r
+    val rest = c + Offset(r * 0.28f, r * 0.68f + frame.squash * s)
+    // 飘落的花瓣：二次贝塞尔从花到掌心，控制点在右上（先被风托起再落下），身后三粒轨迹点渐淡
+    val fall = frame.fall
+    if (fall == null) {
+        petal(rest, s * 0.26f, 72f, petal, alpha)
+    } else if (fall > 0f) {
+        val ctrl = c + Offset(r * 0.75f, -r * 0.65f)
+        for (k in 1..3) {
+            val tt = fall - k * 0.11f
+            if (tt <= 0f) continue
+            drawCircle(petal, radius = s * (0.035f - k * 0.006f), center = quadBezier(dawn, ctrl, rest, easeInOutCubic(tt)), alpha = alpha * (0.75f - k * 0.18f))
+        }
+        val e = easeInOutCubic(fall)
+        petal(quadBezier(dawn, ctrl, rest, e), s * (0.2f + 0.06f * e), 72f + 260f * (1 - e), petal, alpha)
+    }
+    // 晨光处的花：每片花瓣按自己的开放程度缩放
     val flower = Path()
-    for (i in 0 until 5) flower.addPetal(dawn, s * 0.25f, -8 + i * 72f, offset = s * 0.02f)
+    for (i in 0 until 5) {
+        val len = s * 0.25f * frame.bloom[i].coerceAtLeast(0f)
+        if (len > 0.5f) flower.addPetal(dawn, len, -8 + i * 72f + frame.sway, offset = s * 0.02f)
+    }
     drawPath(flower, petal, alpha = alpha)
-    drawCircle(heart, radius = s * 0.065f, center = dawn, alpha = alpha)
+    val heartScale = frame.bloom.average().toFloat().coerceIn(0f, 1.2f)
+    if (heartScale > 0f) drawCircle(heart, radius = s * 0.065f * heartScale, center = dawn, alpha = alpha)
 }
 
-/** 拾日的标志，用在首页标题旁、空状态。 */
+/**
+ * 标志的轨迹动画（朝花夕拾），总长 2.4 秒：
+ * 0.00–0.70s 日光弧从左往右画出，进度 = 1 − 2^(−10t)；
+ * 0.15–0.70s 掌心浮现；
+ * 0.45–1.10s 五片花瓣依次开放，间隔 70ms，弹簧阶跃（ζ = 0.45，带过冲）；
+ * 1.10–2.00s 一片花瓣沿贝塞尔曲线飘进掌心；
+ * 2.00s 起  掌心接住，冲击响应 x(t) = e^(−ζω₀t)·sin(ω_d t) 让它下沉再弹回。
+ */
+fun dayFrame(time: Float, idle: Float = 0f): DayFrame {
+    fun span(from: Float, to: Float) = ((time - from) / (to - from)).coerceIn(0f, 1f)
+    val bloom = FloatArray(5) { i ->
+        val t0 = 0.45f + i * 0.07f
+        if (time < t0) 0f else springStep(time - t0, response = 0.42f, damping = 0.45f)
+    }
+    val fall = if (time < 2.0f) span(1.1f, 2.0f) else null
+    val squash = if (time >= 2.0f) springImpulse(time - 2.0f, response = 0.36f, damping = 0.35f) * 0.035f else 0f
+    return DayFrame(
+        light = easeOutExpo(span(0f, 0.7f)),
+        cradle = easeOutExpo(span(0.15f, 0.7f)),
+        bloom = bloom,
+        fall = fall,
+        squash = squash,
+        sway = 6f * sin(TAU * idle),
+    )
+}
+
+/**
+ * 拾日的标志。animate 为 true 时：出现时演一遍轨迹动画，之后每 10 秒演一遍；轻触立刻重播并重新计时，平时花随风微摆。
+ */
 @Composable
-fun DayMark(size: Dp, modifier: Modifier = Modifier) {
-    Canvas(modifier.size(size)) { drawDay() }
+fun DayMark(size: Dp, modifier: Modifier = Modifier, animate: Boolean = false) {
+    if (!animate || rememberReduceMotion()) {
+        Canvas(modifier.size(size)) { drawDay() }
+        return
+    }
+    val clock = remember { Animatable(0f) }
+    val plays = remember { mutableIntStateOf(0) }
+    val idle by rememberInfiniteTransition(label = "sway").animateFloat(0f, 1f, infiniteRepeatable(tween(4_200, easing = LinearEasing)), label = "idle")
+    LaunchedEffect(plays.intValue) {
+        while (true) {
+            clock.snapTo(0f)
+            clock.animateTo(3.2f, tween(3_200, easing = LinearEasing))
+            delay(6_800) // 每 10 秒演一遍（动画 3.2 秒 + 停 6.8 秒）
+        }
+    }
+    Canvas(
+        modifier.size(size).pointerInput(Unit) { detectTapGestures { plays.intValue++ } },
+    ) { drawDay(frame = dayFrame(clock.value, idle)) }
 }
 
 /** 时间线：两张卡片，一淡紫一蜜桃，左侧各有一个时间点。 */

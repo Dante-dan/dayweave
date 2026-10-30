@@ -151,7 +151,7 @@ private fun Header(nav: Navigator) {
     val hour = LocalTime.now().hour
     Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 10.dp, bottom = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DayMark(32.dp)
+            DayMark(34.dp, animate = true)
             Spacer(Modifier.width(8.dp))
             Text("Dayweave", style = Type.Wordmark)
             Spacer(Modifier.weight(1f))
