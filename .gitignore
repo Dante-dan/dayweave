@@ -1,0 +1,48 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pem
+local.properties
+
+# Private recordings, transcripts, and runtime data
+/data/
+/recordings/
+/transcripts/
+/archives/
+/runtime/
+*.wav
+*.pcm
+*.m4a
+*.aac
+*.ogg
+*.opus
+*.mp3
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Local investigation artifacts
+/research/private/
+/captures/
+*.apk
+*.aab
+*.pcap
+*.pcapng
+
+# Build and editor output
+.DS_Store
+.idea/
+.gradle/
+.kotlin/
+build/
+.local/
+__pycache__/
+.venv/
+node_modules/
