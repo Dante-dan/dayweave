@@ -101,6 +101,9 @@ Agent 的输入是文字档案，职责不限于提取待办：
 ## 仓库内容
 
 ```text
-README.md          项目介绍与计划范围
-docs/PRODUCT.md    产品定位、意图、原则与验收方向
+README.md                       项目介绍与计划范围
+docs/PRODUCT.md                 产品定位、意图、原则与验收方向
+docs/research/device-capture.md 耳机、手环、手机收音链路调查记录
+docs/research/asr-candidates.md ASR 候选初筛
+spikes/audio-probe/             一次性持续采集探针（Android），用于设备真机验证
 ```
