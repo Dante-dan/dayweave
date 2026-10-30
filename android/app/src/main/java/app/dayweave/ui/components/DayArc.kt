@@ -62,8 +62,8 @@ private fun dayFraction(epochMs: Long): Float {
 /**
  * 今日花轨（朝花夕拾）：一天是一道日光走过的弧，y(t) = 底 − 高 · sin(πt)。
  * 太阳停在“此刻”的位置，已经走过的一段用晨光到暮色的颜色画出，未到的部分是虚线。
- * 起点是日出，终点是新月，两端点缀花瓣。今天的每一段对话是一粒光，落在它发生的时刻；轻触光粒打开那段对话。
- * 新的光粒出现时，按欠阻尼弹簧“噗”地亮起。
+ * 起点是日出，终点是新月，两端点缀花瓣。说过话的时段从弧上斜落一道光，越密的时段光越长越亮；
+ * 轻触一道光打开那个时段的对话。
  */
 @Composable
 fun DayArc(today: List<Segment>, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -74,11 +74,11 @@ fun DayArc(today: List<Segment>, onOpen: (String) -> Unit, modifier: Modifier = 
     val now = dayFraction(System.currentTimeMillis())
 
     LaunchedEffect(Unit) { draw.animateTo(1f, tween(1_100, easing = Emphasized)) }
-    LaunchedEffect(today.map { it.id }) {
-        today.sortedBy { it.startedAt }.forEachIndexed { i, s ->
-            if (s.id !in appear) {
+    LaunchedEffect(binsOf(today).map { it.key }) {
+        binsOf(today).forEachIndexed { i, s ->
+            if (s.key !in appear) {
                 val a = Animatable(if (reduce) 1f else 0f)
-                appear[s.id] = a
+                appear[s.key] = a
                 launch {
                     delay(if (draw.value < 1f) 300L + i * 70L else 0L)
                     a.animateTo(1f, tween(1_000, easing = LinearEasing))
@@ -88,15 +88,17 @@ fun DayArc(today: List<Segment>, onOpen: (String) -> Unit, modifier: Modifier = 
     }
 
     val total = today.sumOf { it.durationMs }
+    val bins = remember(today) { binsOf(today) }
     Column(modifier) {
         Canvas(
             Modifier.fillMaxWidth().height(92.dp).pointerInput(today) {
                 detectTapGestures { tap ->
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
-                    today.minByOrNull { s -> point(dayFraction(s.startedAt), w, h).let { hypot(it.x - tap.x, it.y - tap.y) } }
-                        ?.takeIf { s -> point(dayFraction(s.startedAt), w, h).let { hypot(it.x - tap.x, it.y - tap.y) } < 28.dp.toPx() }
-                        ?.let { onOpen(it.id) }
+                    // 轻触一道光，打开那半小时里最近的一段对话
+                    binsOf(today).minByOrNull { b -> point(b.t, w, h).let { hypot(it.x - tap.x, it.y - tap.y) } }
+                        ?.takeIf { b -> point(b.t, w, h).let { hypot(it.x - tap.x, it.y - tap.y) } < 32.dp.toPx() }
+                        ?.let { onOpen(it.latest) }
                 }
             },
         ) {
@@ -136,29 +138,25 @@ fun DayArc(today: List<Segment>, onOpen: (String) -> Unit, modifier: Modifier = 
             val glow = 13.dp.toPx() * (1 + 0.12f * sin(TAU * pulse))
             drawCircle(Brush.radialGradient(listOf(Hue.Gold.copy(alpha = 0.4f * progress), Color.Transparent), center = sun, radius = glow), glow, sun)
             drawCircle(Color.White.copy(alpha = 0.95f * progress), 3.2.dp.toPx() * progress, sun)
-            // 今天的每段对话是一粒光：时长越长越大（r ∝ √分钟），颜色取它所在时刻的天色；
-            // 同一时段的光粒按向日葵叶序（r = c·√k，θ = k·137.5°）聚成一小团光尘。闪烁：α = 0.78 + 0.22·sin(2π(1.5φ + 种子))。
-            var anchor = Offset.Unspecified
-            var stack = 0
-            for ((index, s) in today.sortedBy { it.startedAt }.withIndex()) {
-                val a = appear[s.id]?.value ?: continue
-                val t = dayFraction(s.startedAt)
-                val base = point(t, w, h)
-                if (anchor != Offset.Unspecified && base.x - anchor.x < 14.dp.toPx()) stack++ else {
-                    anchor = base
-                    stack = 0
-                }
+            // 今天说过的话：一天按半小时分格，有录音的时段从弧上斜落一道光。所有光线平行、等距，
+            // 长度 L = L₀ + L₁·√(m / m_max)、不透明度随 m 增加（m 是这半小时里的录音分钟数），只表示疏密，不逐段画。
+            // 入场时光线从弧上长出来：长度乘以弹簧阶跃 springStep，收尾略有回弹。
+            val maxMinutes = bins.maxOfOrNull { it.minutes } ?: 1f
+            val dir = Offset(-0.42f, 1f).let { it / it.getDistance() } // 斜向左下，像斜照的日光
+            for (bin in bins) {
+                val a = appear[bin.key]?.value ?: continue
                 if (a <= 0f) continue
-                val golden = stack * 2.39996f
-                val p = anchor + Offset(cos(golden), sin(golden)) * (4.6.dp.toPx() * kotlin.math.sqrt(stack.toFloat()))
-                val pop = springStep(a, response = 0.45f, damping = 0.5f).coerceAtLeast(0f)
-                val minutes = (s.durationMs / 60_000f).coerceIn(0.1f, 9f)
-                val r = (1.8.dp.toPx() + 1.4.dp.toPx() * kotlin.math.sqrt(minutes)) * pop
-                val twinkle = 0.78f + 0.22f * sin(TAU * (1.5f * pulse + app.dayweave.ui.motion.seed(index, 31)))
-                val color = if (s.source == SourceKind.CALL || s.scene?.kind == SceneKind.CALL) Hue.Mint else skyAt(t)
-                drawCircle(Brush.radialGradient(listOf(color.copy(alpha = 0.5f * twinkle), Color.Transparent), center = p, radius = r * 3.2f + 1f), r * 3.2f, p)
-                drawCircle(color, r, p, alpha = twinkle)
-                drawCircle(Color.White, r * 0.42f, p - Offset(r * 0.25f, r * 0.25f), alpha = 0.8f * twinkle)
+                val t = bin.t
+                val p = point(t, w, h)
+                val density = kotlin.math.sqrt(bin.minutes / maxMinutes).coerceIn(0.15f, 1f)
+                val grow = springStep(a, response = 0.5f, damping = 0.7f).coerceAtLeast(0f)
+                val len = (5.dp.toPx() + 15.dp.toPx() * density) * grow
+                val start = p + dir * 3.dp.toPx()
+                val color = if (bin.call) Hue.Mint else skyAt(t)
+                drawLine(
+                    Brush.linearGradient(listOf(color.copy(alpha = 0.35f + 0.6f * density), color.copy(alpha = 0f)), start, start + dir * len),
+                    start, start + dir * len, 1.8.dp.toPx(), StrokeCap.Round,
+                )
             }
         }
         Text(
@@ -184,6 +182,22 @@ private fun slope(t: Float, w: Float, h: Float): Float {
     val dy = -(h * 0.82f - h * 0.16f) * PI.toFloat() * cos(PI.toFloat() * t)
     return atan2(dy, dx) * 180f / PI.toFloat()
 }
+
+/** 半小时一格的录音聚合：位置、录音分钟数、是否通话、最近一段的 id。 */
+private data class Bin(val key: String, val t: Float, val minutes: Float, val call: Boolean, val latest: String)
+
+private fun binsOf(today: List<Segment>): List<Bin> =
+    today.groupBy { (dayFraction(it.startedAt) * DAY_SPAN_MIN / 30f).toInt() }
+        .toSortedMap()
+        .map { (slot, list) ->
+            Bin(
+                key = "bin-$slot",
+                t = ((slot + 0.5f) * 30f / DAY_SPAN_MIN).coerceIn(0f, 1f),
+                minutes = list.sumOf { it.durationMs } / 60_000f,
+                call = list.all { it.source == SourceKind.CALL || it.scene?.kind == SceneKind.CALL },
+                latest = list.maxBy { it.startedAt }.id,
+            )
+        }
 
 /** 天色：晨光的蜜桃 → 正午的玫瑰 → 暮色的淡紫，按 t 线性插值。 */
 private fun skyAt(t: Float): Color {
