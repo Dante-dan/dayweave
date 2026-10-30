@@ -69,6 +69,7 @@ import app.dayweave.ui.components.frosted
 import app.dayweave.ui.components.pressable
 import androidx.compose.ui.geometry.Offset
 import app.dayweave.ui.motion.Glyph
+import app.dayweave.ui.motion.dayFrame
 import app.dayweave.ui.motion.drawDay
 import app.dayweave.ui.motion.drawTimeline
 import app.dayweave.ui.motion.drawVoice
@@ -188,6 +189,18 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
         )
     }
     val haze = remember { HazeState() }
+    // 底栏“拾日”图标的轨迹动画：首次进入播一次，之后只在点击这个标签时播。进度放在这里，跨页面不丢。
+    val dayClock = remember { androidx.compose.animation.core.Animatable(0f) }
+    var dayPlays by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    val still = app.dayweave.ui.motion.rememberReduceMotion()
+    androidx.compose.runtime.LaunchedEffect(dayPlays) {
+        if (still) {
+            dayClock.snapTo(3.2f)
+            return@LaunchedEffect
+        }
+        dayClock.snapTo(0f)
+        dayClock.animateTo(3.2f, tween(3_200, easing = androidx.compose.animation.core.LinearEasing))
+    }
 
     CompositionLocalProvider(LocalHaze provides haze) {
         Box(Modifier.fillMaxSize()) {
@@ -237,7 +250,10 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                 exit = slideOutVertically(tween(260)) { it * 2 } + fadeOut(tween(200)),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                TabBar(tab) { tab = it }
+                TabBar(tab, dayClock.value, onTab = {
+                    if (it == Tab.DIGEST) dayPlays++
+                    tab = it
+                })
             }
         }
     }
@@ -264,7 +280,7 @@ private fun TabContent(tab: Tab, actions: Actions, nav: Navigator) {
 
 /** 悬浮的玻璃胶囊导航：选中项下面有一块更亮的玻璃，随选择滑动。 */
 @Composable
-private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
+private fun TabBar(tab: Tab, dayTime: Float, onTab: (Tab) -> Unit) {
     val recording by CaptureService.state.collectAsStateWithLifecycle()
     val itemWidth = 96.dp
     // 液态的高亮块：位置走弹簧，宽度随速度拉长（|v| 越大越长），停下时收回原宽，像一滴水滑过去。
@@ -312,7 +328,7 @@ private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
                             // 多色图标：选中时饱满并带光影，未选中时同一图形降低不透明度
                             Glyph(selected = s) { a ->
                                 when (t) {
-                                    Tab.DIGEST -> drawDay(alpha = a)
+                                    Tab.DIGEST -> drawDay(alpha = a, frame = dayFrame(dayTime))
                                     Tab.TIMELINE -> drawTimeline(a)
                                     Tab.CAPTURE -> drawVoice(a)
                                 }
