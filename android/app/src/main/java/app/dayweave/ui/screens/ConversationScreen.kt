@@ -60,8 +60,6 @@ import app.dayweave.ui.components.duration
 import app.dayweave.ui.components.localDate
 import app.dayweave.ui.components.pressable
 import app.dayweave.ui.components.SceneChip
-import app.dayweave.ui.components.ShimmerLines
-import app.dayweave.ui.rememberSettled
 import app.dayweave.ui.sharedSegment
 import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
@@ -100,11 +98,6 @@ fun ConversationScreen(id: String, nav: Navigator) {
             return@Column
         }
 
-        // 展开动画进行时只画占位，动画结束再放入整段对话，展开会更跟手。
-        if (!rememberSettled()) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)) { ShimmerLines(3) }
-            return@Column
-        }
         val participants = segment.speakerIds.map { people[it] }
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -194,8 +187,8 @@ private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boo
     val mine = person?.isOwner == true
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(index.coerceAtMost(12) * 40L)
-        appear.animateTo(1f, tween(340, easing = FastOutSlowInEasing))
+        delay(120L + (index.coerceAtMost(12) * 45L))
+        appear.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
     }
     Column(
         Modifier

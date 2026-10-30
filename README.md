@@ -125,3 +125,9 @@ android/scripts/push-credentials.sh           # 把 .env 里的 Google 服务账
 ```
 
 服务账号需要 `Cloud Speech 客户端` 角色用于转写；AI 每日整理还需要在项目中启用 Vertex AI API，并授予 `Vertex AI 用户` 角色。
+
+## 许可证
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md)：源码公开，个人、学习、研究、公益等非商业用途可以自由使用、修改和分发；商业使用需要另行取得授权。
+
+注意：不可商用的许可证不属于 OSI 定义的“开源”，更准确的说法是“源码公开”（source-available）。

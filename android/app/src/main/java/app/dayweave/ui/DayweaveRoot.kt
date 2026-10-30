@@ -147,17 +147,6 @@ fun Modifier.sharedSegment(key: String): Modifier = composed {
     }
 }
 
-/**
- * 页面进入的过渡动画是否已经结束。详情页先只画轻量的外框跟着卡片展开，
- * 动画结束后再放入长列表，避免每一帧都重新测量整页气泡。
- */
-@Composable
-fun rememberSettled(): Boolean {
-    val animated = LocalAnimated.current ?: return true
-    val transition = animated.transition
-    return !transition.isRunning && transition.currentState == androidx.compose.animation.EnterExitState.Visible
-}
-
 @Composable
 fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<DeepLink?>) {
     var stack by rememberSaveable(stateSaver = RouteSaver) { mutableStateOf(listOf<Route>(Route.Tabs)) }
