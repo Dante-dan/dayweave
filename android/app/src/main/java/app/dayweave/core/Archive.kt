@@ -15,7 +15,7 @@ enum class SceneKind(val label: String, val doing: String) {
     MUSIC("听音乐", "听音乐时"),
     PODCAST("听播客", "听播客时"),
     VIDEO("看视频", "看视频时"),
-    CALL("通话 / 会议", "通话或开会时"),
+    CALL("通话", "通话或开会时"),
     MEDIA("播放声音", "手机在播放声音时"),
 }
 

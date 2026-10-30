@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.dayweave.ai.Suggestion
+import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
 import java.time.Instant
@@ -49,7 +50,7 @@ fun SuggestionCard(
     }
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Ink.StoryBrush).padding(1.5.dp)
-            .clip(RoundedCornerShape(23.dp)).background(Color.White.copy(alpha = 0.92f)).padding(16.dp),
+            .clip(RoundedCornerShape(23.dp)).background(Glass.Veil.copy(alpha = 0.92f)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -91,8 +92,8 @@ private fun Chip(icon: ImageVector, text: String, dark: Boolean, onClick: () -> 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Icon(icon, null, tint = if (dark) Color.White else Ink.Primary, modifier = Modifier.size(15.dp))
-        Text(text, style = Type.Caption.copy(color = if (dark) Color.White else Ink.Primary, fontWeight = FontWeight.SemiBold))
+        Icon(icon, null, tint = if (dark) Ink.OnPrimary else Ink.Primary, modifier = Modifier.size(15.dp))
+        Text(text, style = Type.Caption.copy(color = if (dark) Ink.OnPrimary else Ink.Primary, fontWeight = FontWeight.SemiBold))
     }
 }
 

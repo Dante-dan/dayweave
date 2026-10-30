@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dayweave.core.Person
+import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
 import app.dayweave.ui.theme.personColor
@@ -82,7 +83,7 @@ fun Avatar(person: Person?, size: Dp, modifier: Modifier = Modifier, ring: Boole
             .background(fill),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.38f).sp)
+        Text(label, color = if (person?.isOwner == true) Ink.OnPrimary else Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.38f).sp)
     }
 }
 
@@ -96,7 +97,7 @@ fun AvatarStack(people: List<Person?>, size: Dp = 30.dp, max: Int = 3) {
                 Modifier
                     .offset(x = size * 0.6f * i)
                     .size(size)
-                    .border(2.dp, Color.White, CircleShape)
+                    .border(2.dp, Glass.Veil, CircleShape)
                     .padding(2.dp),
             ) { Avatar(p, size - 4.dp, ring = false) }
         }
@@ -118,7 +119,7 @@ fun ShimmerLines(lines: Int = 2, modifier: Modifier = Modifier) {
                     .drawBehind {
                         drawRect(
                             Brush.linearGradient(
-                                listOf(Ink.Fill, Color(0xFFF7F7F7), Ink.Fill),
+                                listOf(Ink.Fill, Ink.Surface, Ink.Fill),
                                 start = Offset(size.width * x - size.width, 0f),
                                 end = Offset(size.width * x, 0f),
                             ),
@@ -140,7 +141,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, leading: (@Composable () -
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         leading?.invoke()
-        Text(text, style = Type.Caption.copy(color = if (active) Color.White else Ink.Primary, fontWeight = FontWeight.Medium))
+        Text(text, style = Type.Caption.copy(color = if (active) Ink.OnPrimary else Ink.Primary, fontWeight = FontWeight.Medium))
     }
 }
 

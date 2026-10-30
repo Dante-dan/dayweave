@@ -30,6 +30,7 @@ import app.dayweave.core.Person
 import app.dayweave.core.Segment
 import app.dayweave.core.SegmentStatus
 import app.dayweave.core.SourceKind
+import app.dayweave.ui.motion.bloomTap
 import app.dayweave.ui.sharedSegment
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
@@ -58,7 +59,7 @@ fun ConversationCard(
         modifier
             .fillMaxWidth()
             .sharedSegment(segment.id)
-            .pressable(onClick, enabled = segment.status == SegmentStatus.DONE, scaleTo = 0.98f)
+            .bloomTap(onClick, enabled = segment.status == SegmentStatus.DONE, scaleTo = 0.98f)
             .glass(RoundedCornerShape(22.dp), elevation = 6.dp)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

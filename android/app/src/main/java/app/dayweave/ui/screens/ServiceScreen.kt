@@ -134,7 +134,7 @@ private fun ModeSwitch(mode: ServiceMode, onChange: (ServiceMode) -> Unit) {
         Box(Modifier.offset(x = x).width(half).fillMaxHeight().clip(RoundedCornerShape(50)).background(Ink.Primary))
         Row(Modifier.fillMaxSize()) {
             options.forEach { (m, label) ->
-                val color by animateColorAsState(if (m == mode) Color.White else Ink.Primary, label = "c")
+                val color by animateColorAsState(if (m == mode) Ink.OnPrimary else Ink.Primary, label = "c")
                 Box(Modifier.weight(1f).fillMaxHeight().pressable({ onChange(m) }, scaleTo = 0.95f), contentAlignment = Alignment.Center) {
                     Text(label, style = Type.Headline.copy(color = color))
                 }
@@ -192,7 +192,7 @@ private fun CloudPanel() {
 private fun BalanceCard(account: CloudAccount) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Ink.StoryBrush).padding(2.dp)
-            .clip(RoundedCornerShape(26.dp)).background(Color.White.copy(alpha = 0.9f)).padding(22.dp),
+            .clip(RoundedCornerShape(26.dp)).background(Glass.Veil.copy(alpha = 0.9f)).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("余额", style = Type.Micro.copy(color = Ink.Secondary))
@@ -233,7 +233,7 @@ private fun PricingCard(p: CloudPricing) {
 @Composable
 private fun PriceLine(icon: ImageVector, title: String, detail: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Glass.Veil.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = Ink.Primary, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(10.dp))
@@ -409,14 +409,14 @@ private fun Header(icon: ImageVector, title: String, subtitle: String) {
 private fun Pill(text: String, icon: ImageVector? = null, dark: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         Modifier.clip(RoundedCornerShape(50))
-            .background(if (dark && enabled) Ink.Primary else Color.White.copy(alpha = if (enabled) 0.85f else 0.5f))
-            .border(1.dp, Color.White, RoundedCornerShape(50))
+            .background(if (dark && enabled) Ink.Primary else Glass.Veil.copy(alpha = if (enabled) 0.85f else 0.5f))
+            .border(1.dp, Glass.Veil, RoundedCornerShape(50))
             .pressable(onClick, enabled = enabled, scaleTo = 0.94f)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val color = if (dark && enabled) Color.White else if (enabled) Ink.Primary else Ink.Tertiary
+        val color = if (dark && enabled) Ink.OnPrimary else if (enabled) Ink.Primary else Ink.Tertiary
         icon?.let { Icon(it, null, tint = color, modifier = Modifier.size(15.dp)) }
         Text(text, style = Type.Caption.copy(color = color, fontWeight = FontWeight.SemiBold))
     }
@@ -425,7 +425,7 @@ private fun Pill(text: String, icon: ImageVector? = null, dark: Boolean = false,
 @Composable
 private fun Field(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), secret: Boolean = false) {
     Box(
-        modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.8f))
+        modifier.clip(RoundedCornerShape(14.dp)).background(Glass.Veil.copy(alpha = 0.8f))
             .border(1.dp, Glass.Edge, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         if (value.isEmpty()) Text(placeholder, style = Type.Body.copy(color = Ink.Tertiary), maxLines = 1)

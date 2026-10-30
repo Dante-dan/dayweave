@@ -45,6 +45,18 @@ class Settings(context: Context) {
     /** 开始记录后自动回到桌面，之后在通知栏或快捷开关里控制。 */
     val autoBackground: StateFlow<Boolean> = _autoBackground
 
+    private val _theme = MutableStateFlow(
+        prefs.getString("theme", null)?.let { runCatching { app.dayweave.ui.theme.ThemeMode.valueOf(it) }.getOrNull() }
+            ?: app.dayweave.ui.theme.ThemeMode.SYSTEM,
+    )
+    /** 外观：跟随系统、浅色（朝）、深色（夕）。 */
+    val theme: StateFlow<app.dayweave.ui.theme.ThemeMode> = _theme
+
+    fun setTheme(mode: app.dayweave.ui.theme.ThemeMode) {
+        prefs.edit().putString("theme", mode.name).apply()
+        _theme.value = mode
+    }
+
     private val _mode = MutableStateFlow(
         prefs.getString("service_mode", null)?.let(ServiceMode::valueOf)
             ?: if (cloudAvailable) ServiceMode.CLOUD else ServiceMode.OWN,

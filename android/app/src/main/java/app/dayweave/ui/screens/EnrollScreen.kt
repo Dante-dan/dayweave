@@ -68,6 +68,9 @@ import app.dayweave.graph
 import app.dayweave.ui.Actions
 import app.dayweave.ui.Navigator
 import app.dayweave.ui.components.pressable
+import app.dayweave.ui.motion.PetalBurst
+import app.dayweave.ui.motion.Petals
+import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
 import app.dayweave.voice.EnrollRecorder
@@ -152,7 +155,7 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
                     else -> 0f
                 }
                 val fill by animateFloatAsState(target, tween(if (target == 1f) 350 else 120), label = "bar$i")
-                Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.8f))) {
+                Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Glass.Veil.copy(alpha = 0.8f))) {
                     Box(Modifier.fillMaxWidth(fill).height(3.dp).background(Ink.StoryBrush))
                 }
             }
@@ -248,7 +251,7 @@ private fun PromptCard(prompt: Prompt) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             prompt.lang,
-            style = Type.Micro.copy(color = Color.White, fontWeight = FontWeight.SemiBold),
+            style = Type.Micro.copy(color = Ink.OnPrimary, fontWeight = FontWeight.SemiBold),
             modifier = Modifier.clip(RoundedCornerShape(50)).background(Ink.Primary).padding(horizontal = 10.dp, vertical = 4.dp),
         )
         Spacer(Modifier.height(24.dp))
@@ -269,10 +272,13 @@ private fun Done() {
     val pop = remember { Animatable(0f) }
     LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.Center) {
+        PetalBurst(pop.targetValue, Petals.BLOOM, Modifier.size(104.dp), count = 18, durationMs = 1_400)
         Box(
             Modifier.size(104.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }.clip(CircleShape).background(Ink.StoryBrush),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(52.dp)) }
+        }
         Spacer(Modifier.height(24.dp))
         Text("声纹已录入", style = Type.Display)
         Text("之后的对话里，你会出现在右侧", style = Type.Caption, modifier = Modifier.padding(top = 8.dp))
@@ -283,7 +289,7 @@ private fun Done() {
 private fun PrimaryButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     Text(
         text,
-        style = Type.Headline.copy(color = Color.White),
+        style = Type.Headline.copy(color = Ink.OnPrimary),
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
@@ -322,7 +328,7 @@ private fun RecordButton(recording: Boolean, elapsed: Long, level: Double, onCli
                     .background(if (recording) Ink.Live else Ink.Primary),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (recording) Icons.Rounded.Stop else Icons.Rounded.Mic, if (recording) "读完了" else "开始朗读", tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(if (recording) Icons.Rounded.Stop else Icons.Rounded.Mic, if (recording) "读完了" else "开始朗读", tint = if (recording) Color.White else Ink.OnPrimary, modifier = Modifier.size(32.dp))
             }
         }
         Text(if (recording) "读完后轻触" else "轻触开始朗读", style = Type.Caption, modifier = Modifier.padding(top = 12.dp))

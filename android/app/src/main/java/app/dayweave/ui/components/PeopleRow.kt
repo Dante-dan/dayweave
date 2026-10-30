@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.dayweave.core.Person
+import app.dayweave.ui.motion.bloomTap
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
 
@@ -28,7 +29,7 @@ fun PeopleRow(people: List<Person>, onClick: (Person) -> Unit, modifier: Modifie
     ) {
         items(people, key = { it.id }) { p ->
             Column(
-                Modifier.width(64.dp).pressable({ onClick(p) }, scaleTo = 0.9f),
+                Modifier.width(64.dp).bloomTap({ onClick(p) }, scaleTo = 0.9f),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Avatar(p, 60.dp, ring = p.isOwner || !p.named)

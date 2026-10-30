@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.dayweave.ui.motion.petal
 import app.dayweave.ui.theme.Glass
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -43,9 +44,9 @@ import kotlin.math.sin
 /** 根布局提供的背景模糊源；悬浮的玻璃元素（导航栏、浮层）用它做真实的背景模糊。 */
 val LocalHaze = compositionLocalOf<HazeState?> { null }
 
-val GlassStyle = HazeStyle(
+val GlassStyle get() = HazeStyle(
     backgroundColor = Glass.Base,
-    tint = HazeTint(Color.White.copy(alpha = 0.55f)),
+    tint = HazeTint(Glass.Veil.copy(alpha = if (app.dayweave.ui.theme.Palette.dark) 0.45f else 0.55f)),
     blurRadius = 28.dp,
     noiseFactor = 0.06f,
 )
@@ -98,6 +99,9 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
     val t = rememberInfiniteTransition(label = "aurora")
     val phase by t.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(36_000, easing = LinearEasing)), label = "phase")
     val pulse by t.animateFloat(0.9f, 1.1f, infiniteRepeatable(tween(9_000), RepeatMode.Reverse), label = "pulse")
+    // 落花的时钟：一分钟一个循环，每片花瓣按自己的速度取模，循环处看不出接缝。
+    val clock by t.animateFloat(0f, 60f, infiniteRepeatable(tween(60_000, easing = LinearEasing)), label = "petals")
+    val still = app.dayweave.ui.motion.rememberReduceMotion()
     Box(modifier.fillMaxSize().background(Glass.Base)) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
@@ -112,7 +116,36 @@ fun Aurora(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Un
             blob(Glass.Sky, 0.95f, 0.70f, w * 0.75f, -2f)
             blob(Glass.Butter, 0.30f, 0.95f, w * 0.65f * pulse, 1f)
             blob(Glass.Mint, 0.85f, 1.02f, w * 0.55f, -1f)
+            if (!still) driftingPetals(clock)
         }
         content()
     }
 }
+
+/**
+ * 背景里缓缓飘落的几片花瓣（朝花夕拾）。每片花瓣的轨迹是：
+ * y(t) = (y₀ + v·t) mod (H + 2s) − s（匀速下落、循环），
+ * x(t) = x₀ + A·sin(ωt + φ) + d·t（左右摇摆、带一点风向漂移），
+ * 旋转 r(t) = r₀ + 38°·sin(0.7ωt + φ)。透明度很低，只做氛围。
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.driftingPetals(clock: Float) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.035f
+    for (i in 0 until 7) {
+        val speed = h * (0.018f + 0.012f * app.dayweave.ui.motion.seed(i, 21)) // 每秒下落屏高的 1.8%–3%
+        val omega = 0.5f + 0.35f * app.dayweave.ui.motion.seed(i, 22)
+        val phase = app.dayweave.ui.motion.seed(i, 23) * app.dayweave.ui.motion.TAU
+        val span = h + 2 * s
+        val y = ((h * app.dayweave.ui.motion.seed(i, 24) + speed * clock) % span) - s
+        val x = w * (0.08f + 0.84f * app.dayweave.ui.motion.seed(i, 25)) + w * 0.05f * sin(omega * clock + phase) + w * 0.012f * clock % w
+        val rot = 360f * app.dayweave.ui.motion.seed(i, 26) + 38f * sin(0.7f * omega * clock + phase)
+        val size = s * (0.75f + 0.6f * app.dayweave.ui.motion.seed(i, 27))
+        // 夜里的落花不能是灰的：换成带一点光的玫瑰与淡紫，透明度更低
+        val dark = app.dayweave.ui.theme.Palette.dark
+        val tint = if (dark) NightPetals[i % NightPetals.size] else app.dayweave.ui.motion.PetalTints[i % 6]
+        petal(Offset(x % w, y), size, rot, tint, alpha = if (dark) 0.26f else 0.38f)
+    }
+}
+
+private val NightPetals = listOf(Color(0xFFFF8FBF), Color(0xFFC9A8FF), Color(0xFFFFB38F), Color(0xFFFF7FAF))

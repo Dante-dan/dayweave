@@ -37,6 +37,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import app.dayweave.ui.motion.PetalBurst
+import app.dayweave.ui.motion.Petals
+import app.dayweave.ui.motion.springImpulse
 import app.dayweave.ui.theme.Ink
 
 /**
@@ -69,7 +76,22 @@ fun CaptureOrb(
         label = "level",
     )
 
+    // 开启、关闭时的“一下”：用阻尼弹簧的冲击响应做挤压与拉伸（横向胀、纵向缩，体积大致守恒）。
+    val kick = remember { Animatable(1f) }
+    val firstRun = remember { mutableStateOf(true) }
+    LaunchedEffect(running) {
+        if (firstRun.value) {
+            firstRun.value = false
+            return@LaunchedEffect
+        }
+        kick.snapTo(0f)
+        kick.animateTo(1f, tween(900, easing = LinearEasing))
+    }
+    val impulse = if (kick.value < 1f) springImpulse(kick.value * 0.9f) * (if (running) 0.09f else -0.06f) else 0f
+
     Box(modifier.size(size * 1.45f), contentAlignment = Alignment.Center) {
+        // 开启时花瓣绽开，关闭时落花
+        PetalBurst(running, if (running) Petals.BLOOM else Petals.FALL, Modifier.size(size), count = if (running) 16 else 10)
         // 涟漪
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = rippleAlpha }) {
             val base = size.toPx() / 2
@@ -84,7 +106,10 @@ fun CaptureOrb(
         Box(
             Modifier
                 .size(size)
-                .graphicsLayer { scaleX = breathe * levelScale; scaleY = breathe * levelScale }
+                .graphicsLayer {
+                    scaleX = breathe * levelScale * (1 + impulse)
+                    scaleY = breathe * levelScale * (1 - impulse * 0.7f)
+                }
                 .pressable(onClick, scaleTo = 0.93f),
             contentAlignment = Alignment.Center,
         ) {
@@ -116,7 +141,7 @@ fun CaptureOrb(
                 Icon(
                     if (on) Icons.Rounded.GraphicEq else Icons.Rounded.Mic,
                     contentDescription = if (on) "停止记录" else "开始记录",
-                    tint = if (on) Color.White else Ink.Primary,
+                    tint = if (on) Ink.OnPrimary else Ink.Primary,
                     modifier = Modifier.size(size * 0.26f),
                 )
             }

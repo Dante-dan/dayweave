@@ -176,7 +176,7 @@ fun ConversationScreen(id: String, nav: Navigator) {
                 }) { Text("删除", color = Ink.Danger, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消", color = Ink.Primary) } },
-            containerColor = Color.White,
+            containerColor = Ink.Surface,
         )
     }
 }
@@ -216,7 +216,7 @@ private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boo
                     .clip(RoundedCornerShape(22.dp))
                     .then(
                         if (mine) Modifier.background(Ink.OwnerBubble)
-                        else Modifier.background(Color.White.copy(alpha = 0.78f)).border(1.dp, Glass.Edge, RoundedCornerShape(22.dp)),
+                        else Modifier.background(Glass.Veil.copy(alpha = 0.78f)).border(1.dp, Glass.Edge, RoundedCornerShape(22.dp)),
                     )
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             )

@@ -65,6 +65,8 @@ import app.dayweave.ui.Navigator
 import app.dayweave.ui.Tab
 import app.dayweave.ui.TabBarClearance
 import app.dayweave.ai.perform
+import app.dayweave.ui.motion.BlossomMark
+import app.dayweave.ui.motion.bloomTap
 import app.dayweave.ui.components.AvatarStack
 import app.dayweave.ui.components.SuggestionCard
 import app.dayweave.ui.components.ShimmerLines
@@ -142,6 +144,10 @@ private fun Header(nav: Navigator) {
     val hour = LocalTime.now().hour
     Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 10.dp, bottom = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            val spin = rememberInfiniteTransition(label = "mark")
+            val turn by spin.animateFloat(0f, 72f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "turn")
+            BlossomMark(30.dp, rotation = turn)
+            Spacer(Modifier.width(8.dp))
             Text("Dayweave", style = Type.Wordmark)
             Spacer(Modifier.weight(1f))
             MiniOrb(capture.running) { nav.openTab(Tab.CAPTURE) }
@@ -157,7 +163,11 @@ private fun Header(nav: Navigator) {
             modifier = Modifier.padding(top = 18.dp),
         )
         Text(
-            LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)) + " · 由秘书根据你的对话整理",
+            LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)) + " · " + when (hour) {
+                in 5..10 -> "朝花未落，今天慢慢来"
+                in 11..17 -> "花开半日，记得抬头看看"
+                else -> "夕拾朝花，看看今天拾起了什么"
+            },
             style = Type.Caption,
             modifier = Modifier.padding(top = 6.dp),
         )
@@ -172,12 +182,12 @@ private fun MiniOrb(running: Boolean, onClick: () -> Unit) {
     Box(Modifier.size(44.dp).pressable(onClick, scaleTo = 0.86f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(44.dp).rotate(if (running) rot else 0f)) {
             if (running) drawCircle(Brush.sweepGradient(Ink.StorySweep), style = Stroke(2.5.dp.toPx()))
-            else drawCircle(Color.White.copy(alpha = 0.9f), style = Stroke(1.dp.toPx()))
+            else drawCircle(Glass.Veil.copy(alpha = 0.9f), style = Stroke(1.dp.toPx()))
         }
         Box(Modifier.size(36.dp).clip(CircleShape).background(if (running) Ink.Primary else Glass.FillStrong), contentAlignment = Alignment.Center) {
             Icon(
                 if (running) Icons.Rounded.GraphicEq else Icons.Rounded.Mic, if (running) "正在记录" else "开始记录",
-                tint = if (running) Color.White else Ink.Primary, modifier = Modifier.size(18.dp),
+                tint = if (running) Ink.OnPrimary else Ink.Primary, modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -201,7 +211,7 @@ private fun DayCard(
         modifier
             .fillMaxWidth()
             .sharedSegment("day-$date")
-            .pressable(onClick, scaleTo = 0.985f)
+            .bloomTap(onClick, scaleTo = 0.985f)
             .glass(RoundedCornerShape(28.dp))
             .padding(20.dp),
     ) {
@@ -256,7 +266,7 @@ private fun DigestPreview(d: DayDigest, updating: Boolean) {
         val todos = d.followUps.filter { it.owner == "me" }.take(3)
         if (todos.isNotEmpty()) {
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.55f)).padding(14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Glass.Veil.copy(alpha = 0.55f)).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("要跟进", style = Type.Micro.copy(color = Ink.Secondary))
@@ -289,13 +299,15 @@ fun TopicChip(text: String, index: Int) {
     )
 }
 
-/** 一颗缓慢旋转的星芒，表示秘书正在工作。 */
+/** 一朵缓慢旋转的小花，表示秘书正在工作。转速按 sin² 起伏，像呼吸，不机械。 */
 @Composable
 fun Sparkle(text: String) {
     val t = rememberInfiniteTransition(label = "sparkle")
-    val rot by t.animateFloat(0f, 360f, infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "rot")
+    val phase by t.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing)), label = "phase")
+    // 角度 = 72°·(φ − sin(2πφ)/2π)：一周期转过一瓣，中段快、两端慢
+    val rot = 72f * (phase - kotlin.math.sin(app.dayweave.ui.motion.TAU * phase) / app.dayweave.ui.motion.TAU)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.AutoAwesome, null, tint = Ink.Pink, modifier = Modifier.size(16.dp).rotate(rot))
+        BlossomMark(16.dp, rotation = rot)
         Spacer(Modifier.width(6.dp))
         Text(text, style = Type.Caption.copy(color = Ink.Pink, fontWeight = FontWeight.Medium))
     }
@@ -310,16 +322,14 @@ private fun EmptyDigest(nav: Navigator) {
         Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(RoundedCornerShape(28.dp)).padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(64.dp).clip(CircleShape).background(Ink.StoryBrush), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(30.dp))
-        }
+        BlossomMark(64.dp)
         Spacer(Modifier.height(16.dp))
-        Text("你的第一天，从一段对话开始", style = Type.Headline)
+        Text("朝花夕拾，从第一段对话开始", style = Type.Headline)
         Text("开始记录后，秘书会在这里按天整理经历、决定和要跟进的事。", style = Type.Caption, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(18.dp))
         Text(
             "去开始记录",
-            style = Type.Headline.copy(color = Color.White),
+            style = Type.Headline.copy(color = Ink.OnPrimary),
             modifier = Modifier.clip(RoundedCornerShape(50)).background(Ink.Primary).pressable({ nav.openTab(Tab.CAPTURE) })
                 .padding(horizontal = 22.dp, vertical = 11.dp),
         )

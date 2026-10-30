@@ -70,6 +70,9 @@ import app.dayweave.ui.components.Aurora
 import app.dayweave.ui.components.LocalHaze
 import app.dayweave.ui.components.frosted
 import app.dayweave.ui.components.pressable
+import androidx.compose.ui.geometry.Offset
+import app.dayweave.ui.motion.LitIcon
+import app.dayweave.ui.motion.blossomIcon
 import app.dayweave.ui.screens.CaptureScreen
 import app.dayweave.ui.screens.ConversationScreen
 import app.dayweave.ui.screens.DayScreen
@@ -78,6 +81,7 @@ import app.dayweave.ui.screens.EnrollScreen
 import app.dayweave.ui.screens.PersonScreen
 import app.dayweave.ui.screens.ServiceScreen
 import app.dayweave.ui.screens.TimelineScreen
+import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -89,6 +93,8 @@ data class DeepLink(
     val day: String? = null,
     val enroll: Boolean = false,
     val service: Boolean = false,
+    /** 每次跳转都不同，同样的链接点第二次也会生效（StateFlow 会丢弃相等的值）。 */
+    val nonce: Long = 0,
 )
 
 /** 由 Activity 提供、需要系统授权弹窗或系统页面的动作。 */
@@ -111,10 +117,11 @@ private sealed interface Route {
     data class Person(val id: String) : Route
 }
 
-enum class Tab(val outline: ImageVector, val filled: ImageVector, val label: String) {
-    DIGEST(Icons.Outlined.AutoAwesome, Icons.Rounded.AutoAwesome, "拾日"),
-    TIMELINE(Icons.Outlined.ViewAgenda, Icons.Rounded.ViewAgenda, "时间线"),
-    CAPTURE(Icons.Outlined.GraphicEq, Icons.Rounded.GraphicEq, "采集"),
+/** 底栏：选中与否用同一个实心图形，只靠颜色和光影区分（和 iOS 的标签栏一致）。 */
+enum class Tab(val icon: ImageVector, val label: String) {
+    DIGEST(blossomIcon(filled = true), "拾日"),
+    TIMELINE(Icons.Rounded.ViewAgenda, "时间线"),
+    CAPTURE(Icons.Rounded.GraphicEq, "采集"),
 }
 
 /** 页面跳转用的回调集合。 */
@@ -256,7 +263,16 @@ private fun TabContent(tab: Tab, actions: Actions, nav: Navigator) {
 private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
     val recording by CaptureService.state.collectAsStateWithLifecycle()
     val itemWidth = 96.dp
-    val indicator by animateDpAsState(itemWidth * tab.ordinal, spring(dampingRatio = 0.72f, stiffness = 380f), label = "indicator")
+    // 液态的高亮块：位置走弹簧，宽度随速度拉长（|v| 越大越长），停下时收回原宽，像一滴水滑过去。
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val itemPx = with(density) { itemWidth.toPx() }
+    val x = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(itemPx * tab.ordinal) }
+    androidx.compose.runtime.LaunchedEffect(tab) {
+        x.animateTo(itemPx * tab.ordinal, spring(dampingRatio = 0.74f, stiffness = 340f))
+    }
+    val stretch = (kotlin.math.abs(x.velocity) / 9_000f).coerceAtMost(0.45f) * itemPx
+    val indicator = with(density) { (x.value - stretch / 2).toDp() }
+    val indicatorWidth = with(density) { (itemPx + stretch).toDp() }
     Box(
         Modifier
             .navigationBarsPadding()
@@ -269,15 +285,15 @@ private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
         Box(
             Modifier
                 .offset(x = indicator)
-                .width(itemWidth)
+                .width(indicatorWidth)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(30.dp))
-                .background(Color.White.copy(alpha = 0.85f)),
+                .background(Glass.Veil.copy(alpha = 0.85f)),
         )
         Row {
             Tab.entries.forEach { t ->
                 val selected = t == tab
-                val tint by animateColorAsState(if (selected) Ink.Primary else Ink.Secondary, label = "tint")
+                val tint by animateColorAsState(if (selected) Ink.Accent else Ink.Secondary, label = "tint")
                 Column(
                     Modifier.width(itemWidth).fillMaxHeight().pressable({ onTab(t) }, scaleTo = 0.88f),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -288,7 +304,11 @@ private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
                             targetState = selected,
                             transitionSpec = { scaleIn(spring(Spring.DampingRatioMediumBouncy), initialScale = 0.7f) + fadeIn() togetherWith fadeOut(tween(90)) },
                             label = "icon",
-                        ) { s -> Icon(if (s) t.filled else t.outline, t.label, tint = tint, modifier = Modifier.size(24.dp)) }
+                        ) { s ->
+                            // 选中时：强调色 + 顶光与投影，拾日的花心点一粒暖金；未选中：同一图形的灰色。
+                            if (s) LitIcon(t.icon, t.label, color = Ink.Accent, heart = if (t == Tab.DIGEST) Offset(0.5f, 0.51f) else null)
+                            else Icon(t.icon, t.label, tint = tint, modifier = Modifier.size(24.dp))
+                        }
                         if (t == Tab.CAPTURE && recording.running) {
                             Box(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-2).dp).size(8.dp).clip(CircleShape).background(Ink.Live))
                         }

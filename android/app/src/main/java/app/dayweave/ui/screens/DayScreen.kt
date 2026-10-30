@@ -198,7 +198,7 @@ private fun Section(title: String, lines: List<Line>, order: Int, byId: Map<Stri
 private fun Tag(text: String, filled: Boolean = false, onClick: (() -> Unit)? = null) {
     Text(
         text,
-        style = Type.Micro.copy(color = if (filled) Color.White else Ink.Primary, fontWeight = FontWeight.SemiBold),
+        style = Type.Micro.copy(color = if (filled) Ink.OnPrimary else Ink.Primary, fontWeight = FontWeight.SemiBold),
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(if (filled) Ink.Primary else Glass.Lavender.copy(alpha = 0.7f))

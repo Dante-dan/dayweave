@@ -121,7 +121,7 @@ class CallRecordings(
             runCatching { LocalDateTime.parse(it, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")).atZone(zone).toInstant().toEpochMilli() }.getOrNull()
         } ?: modified
         val contact = who ?: number ?: "未知号码"
-        val scene = Scene(SceneKind.CALL, app = "电话 · $contact", title = number?.takeIf { who != null })
+        val scene = Scene(SceneKind.CALL, app = contact, title = number?.takeIf { who != null })
 
         var part: WavWriter? = null
         var partStart = startedAt

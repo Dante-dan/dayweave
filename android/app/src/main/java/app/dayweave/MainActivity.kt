@@ -18,7 +18,13 @@ import app.dayweave.capture.MediaListener
 import app.dayweave.ui.Actions
 import app.dayweave.ui.DayweaveRoot
 import app.dayweave.ui.DeepLink
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.dayweave.ui.theme.DayweaveTheme
+import app.dayweave.ui.theme.Palette
+import app.dayweave.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,12 +81,16 @@ class MainActivity : ComponentActivity(), Actions {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-        )
+        // 首帧前就定好深浅色，冷启动时不闪。
+        Palette.dark = isDark(graph.settings.theme.value, systemDark())
+        applySystemBars(Palette.dark)
         super.onCreate(savedInstanceState)
-        setContent { DayweaveTheme { DayweaveRoot(this, deepLink) } }
+        setContent {
+            val mode by graph.settings.theme.collectAsStateWithLifecycle()
+            val dark = isDark(mode, isSystemInDarkTheme())
+            LaunchedEffect(dark) { applySystemBars(dark) }
+            DayweaveTheme(dark) { DayweaveRoot(this, deepLink) }
+        }
         readDeepLink(intent)
     }
 
@@ -91,7 +101,7 @@ class MainActivity : ComponentActivity(), Actions {
 
     /**
      * 通知、快捷开关和调试用的跳转（HyperOS 默认禁止 adb 模拟点击）：
-     * adb shell am start -n app.dayweave/.MainActivity --es tab timeline|capture|digest [--es conversation <id>] [--es day 2026-10-30] [--ez enroll true] [--ez service true]
+     * adb shell am start -n app.dayweave/.MainActivity --es tab timeline|capture|digest [--es conversation <id>] [--es day 2026-10-30] [--ez enroll true] [--ez service true] [--es theme system|light|dark]
      */
     private fun readDeepLink(intent: Intent?) {
         intent ?: return
@@ -102,9 +112,27 @@ class MainActivity : ComponentActivity(), Actions {
             enroll = intent.getBooleanExtra("enroll", false),
             service = intent.getBooleanExtra("service", false),
         )
-        if (link != DeepLink()) deepLink.value = link
+        if (link != DeepLink()) deepLink.value = link.copy(nonce = System.nanoTime())
+        intent.getStringExtra("theme")?.let { name ->
+            ThemeMode.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let(graph.settings::setTheme)
+        }
         if (BuildConfig.DEBUG) intent.getStringExtra("importCall")?.let { graph.callRecordings.importForTest(java.io.File(cacheDir, it)) }
         if (intent.getBooleanExtra("start", false) && !CaptureService.state.value.running) toggleCapture()
+    }
+
+    private fun systemDark() =
+        (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+    private fun isDark(mode: ThemeMode, system: Boolean) = when (mode) {
+        ThemeMode.SYSTEM -> system
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    /** 状态栏、导航栏的图标颜色跟着深浅色走，背景保持透明。 */
+    private fun applySystemBars(dark: Boolean) {
+        val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
     }
 
     private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

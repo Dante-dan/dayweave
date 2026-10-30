@@ -176,10 +176,10 @@ private fun TimelineRow(at: Long, node: Color?, first: Boolean, last: Boolean, m
         Canvas(Modifier.width(28.dp).fillMaxHeight()) {
             val x = size.width / 2
             val nodeY = 26.dp.toPx()
-            val line = Color.White.copy(alpha = 0.9f)
+            val line = Glass.Veil.copy(alpha = 0.9f)
             if (!first) drawLine(line, Offset(x, 0f), Offset(x, nodeY), 2.dp.toPx())
             if (!last) drawLine(line, Offset(x, nodeY), Offset(x, size.height), 2.dp.toPx())
-            drawCircle(Color.White, 7.dp.toPx(), Offset(x, nodeY))
+            drawCircle(Glass.Veil, 7.dp.toPx(), Offset(x, nodeY))
             if (node != null) drawCircle(node, 4.5.dp.toPx(), Offset(x, nodeY))
             else drawCircle(Brush.linearGradient(Ink.Story, Offset(x - 5, nodeY - 5), Offset(x + 5, nodeY + 5)), 4.5.dp.toPx(), Offset(x, nodeY))
             drawCircle(Glass.Lavender, 7.dp.toPx(), Offset(x, nodeY), style = Stroke(1.dp.toPx()))

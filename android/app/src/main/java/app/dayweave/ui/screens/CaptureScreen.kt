@@ -97,6 +97,7 @@ import app.dayweave.capture.isBluetooth
 import app.dayweave.capture.mediaAccessGranted
 import app.dayweave.core.ServiceMode
 import app.dayweave.ui.components.SceneChip
+import app.dayweave.ui.motion.bloomTap
 import app.dayweave.capture.CaptureState
 import app.dayweave.capture.InputOption
 import app.dayweave.capture.listInputs
@@ -243,6 +244,24 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             )
         }
 
+        Group("外观") {
+            val theme by graph.settings.theme.collectAsStateWithLifecycle()
+            Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                app.dayweave.ui.theme.ThemeMode.entries.forEach { m ->
+                    val on = m == theme
+                    val bg by animateColorAsState(if (on) Ink.Primary else Glass.Veil.copy(alpha = 0.6f), label = "bg")
+                    val fg by animateColorAsState(if (on) Ink.OnPrimary else Ink.Primary, label = "fg")
+                    Text(
+                        m.label,
+                        style = Type.Caption.copy(color = fg, fontWeight = FontWeight.SemiBold),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(bg)
+                            .bloomTap({ graph.settings.setTheme(m) }, scaleTo = 0.95f).padding(vertical = 11.dp),
+                    )
+                }
+            }
+        }
+
         Group("主人声纹") {
             Item(
                 icon = Icons.Rounded.Fingerprint,
@@ -309,7 +328,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
                 }) { Text("删除", color = Ink.Danger, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text("取消", color = Ink.Primary) } },
-            containerColor = Color.White,
+            containerColor = Ink.Surface,
         )
     }
 }
@@ -328,7 +347,7 @@ private fun requestTile(context: android.content.Context) {
 @Composable
 private fun SoftButton(text: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.85f)).pressable(onClick, scaleTo = 0.94f)
+        Modifier.clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.85f)).pressable(onClick, scaleTo = 0.94f)
             .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -432,7 +451,7 @@ private fun Group(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Divider() = HorizontalDivider(thickness = 0.5.dp, color = Color.White.copy(alpha = 0.9f), modifier = Modifier.padding(start = 58.dp))
+private fun Divider() = HorizontalDivider(thickness = 0.5.dp, color = Glass.Veil.copy(alpha = 0.9f), modifier = Modifier.padding(start = 58.dp))
 
 @Composable
 private fun Chevron() = Icon(Icons.Rounded.ChevronRight, null, tint = Ink.Tertiary)
@@ -448,8 +467,8 @@ private fun GlassSwitch(checked: Boolean, enabled: Boolean, onChange: (Boolean) 
     onCheckedChange = onChange,
     enabled = enabled,
     colors = SwitchDefaults.colors(
-        checkedTrackColor = Ink.Primary, checkedThumbColor = Color.White,
-        uncheckedTrackColor = Color.White.copy(alpha = 0.7f), uncheckedBorderColor = Color.White, uncheckedThumbColor = Ink.Tertiary,
+        checkedTrackColor = Ink.Primary, checkedThumbColor = Ink.OnPrimary,
+        uncheckedTrackColor = Glass.Veil.copy(alpha = 0.7f), uncheckedBorderColor = Glass.Veil, uncheckedThumbColor = Ink.Tertiary,
     ),
 )
 
@@ -467,7 +486,7 @@ private fun Item(
         Modifier.fillMaxWidth().pressable(onClick, enabled = enabled, scaleTo = 0.985f).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Glass.Veil.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = if (danger) Ink.Danger else Ink.Primary, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
@@ -519,7 +538,7 @@ private fun InputRow(option: InputOption, selected: Boolean, onClick: () -> Unit
         Modifier.fillMaxWidth().pressable(onClick, scaleTo = 0.98f).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(42.dp).clip(CircleShape).background(Glass.Veil.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
             Icon(if (option.isBluetooth) Icons.Rounded.Headphones else Icons.Rounded.Mic, null)
         }
         Spacer(Modifier.width(14.dp))

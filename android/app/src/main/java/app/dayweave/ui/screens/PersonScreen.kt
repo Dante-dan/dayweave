@@ -60,7 +60,13 @@ import app.dayweave.core.Person
 import app.dayweave.graph
 import app.dayweave.mergePeople
 import app.dayweave.ui.Navigator
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import app.dayweave.ui.components.Avatar
+import app.dayweave.ui.motion.PetalBurst
+import app.dayweave.ui.motion.Petals
 import app.dayweave.ui.components.ConversationCard
 import app.dayweave.ui.components.dayLabel
 import app.dayweave.ui.components.glass
@@ -105,7 +111,19 @@ fun PersonScreen(id: String, nav: Navigator) {
                 Modifier.fillMaxWidth().glass(RoundedCornerShape(28.dp), strong = true).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Avatar(person, 96.dp, ring = true)
+                // 起好名字的一刻：花瓣绕头像转 3/4 圈后散开，新的首字带过冲地弹出来。
+                Box(contentAlignment = Alignment.Center) {
+                    AnimatedContent(
+                        targetState = person,
+                        contentKey = { it.initial },
+                        transitionSpec = {
+                            (scaleIn(spring(dampingRatio = 0.48f, stiffness = 260f), initialScale = 0.55f) + fadeIn()) togetherWith
+                                (scaleOut(tween(160), targetScale = 1.15f) + fadeOut(tween(140)))
+                        },
+                        label = "avatar",
+                    ) { p -> Avatar(p, 96.dp, ring = true) }
+                    PetalBurst(person.name, Petals.ORBIT, Modifier.size(96.dp), count = 12, durationMs = 1_300, radius = 150f)
+                }
                 Spacer(Modifier.size(14.dp))
                 AnimatedContent(editing, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "name") { e ->
                     if (e) NameEditor(person) { name ->
@@ -184,7 +202,7 @@ private fun NameEditor(person: Person, done: (String?) -> Unit) {
     LaunchedEffect(Unit) { focus.requestFocus() }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.width(200.dp).clip(RoundedCornerShape(14.dp)).background(Color.White)
+            Modifier.width(200.dp).clip(RoundedCornerShape(14.dp)).background(Ink.Surface)
                 .border(1.dp, Ink.Hairline, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             if (text.isEmpty()) Text("例如：妈妈、Alex、王老师", style = Type.Body.copy(color = Ink.Tertiary))
@@ -201,14 +219,14 @@ private fun NameEditor(person: Person, done: (String?) -> Unit) {
         Box(
             Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Ink.Primary).pressable({ done(text.takeIf { it.isNotBlank() }) }),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.Check, "保存", tint = Color.White, modifier = Modifier.size(20.dp)) }
+        ) { Icon(Icons.Rounded.Check, "保存", tint = Ink.OnPrimary, modifier = Modifier.size(20.dp)) }
     }
 }
 
 @Composable
 private fun Action(icon: ImageVector, text: String, onClick: () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.9f)).pressable(onClick, scaleTo = 0.94f)
+        Modifier.clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.9f)).pressable(onClick, scaleTo = 0.94f)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
