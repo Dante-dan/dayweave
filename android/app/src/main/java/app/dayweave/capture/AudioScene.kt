@@ -19,6 +19,7 @@ import app.dayweave.core.SceneKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
+import app.dayweave.core.tr
 
 private const val POLL_MS = 1_500L
 /** 场景持续这么久才算切换，避免切歌、广告间隙来回跳。 */
@@ -28,32 +29,32 @@ private const val SAVE_EVERY_MS = 60_000L
 
 /** 常见 App 的归类。没开通知使用权时拿不到包名，只能按系统公开的内容类型判断。 */
 private val KNOWN = mapOf(
-    "com.netease.cloudmusic" to (SceneKind.MUSIC to "网易云音乐"),
-    "com.tencent.qqmusic" to (SceneKind.MUSIC to "QQ 音乐"),
-    "com.kugou.android" to (SceneKind.MUSIC to "酷狗音乐"),
-    "cn.kuwo.player" to (SceneKind.MUSIC to "酷我音乐"),
-    "com.luna.music" to (SceneKind.MUSIC to "汽水音乐"),
-    "com.miui.player" to (SceneKind.MUSIC to "小米音乐"),
+    "com.netease.cloudmusic" to (SceneKind.MUSIC to tr("网易云音乐", "NetEase Cloud Music")),
+    "com.tencent.qqmusic" to (SceneKind.MUSIC to tr("QQ 音乐", "QQ Music")),
+    "com.kugou.android" to (SceneKind.MUSIC to tr("酷狗音乐", "Kugou Music")),
+    "cn.kuwo.player" to (SceneKind.MUSIC to tr("酷我音乐", "Kuwo Music")),
+    "com.luna.music" to (SceneKind.MUSIC to tr("汽水音乐", "Qishui Music")),
+    "com.miui.player" to (SceneKind.MUSIC to tr("小米音乐", "Xiaomi Music")),
     "com.spotify.music" to (SceneKind.MUSIC to "Spotify"),
     "com.apple.android.music" to (SceneKind.MUSIC to "Apple Music"),
     "com.google.android.apps.youtube.music" to (SceneKind.MUSIC to "YouTube Music"),
-    "app.podcast.cosmos" to (SceneKind.PODCAST to "小宇宙"),
-    "com.ximalaya.ting.android" to (SceneKind.PODCAST to "喜马拉雅"),
+    "app.podcast.cosmos" to (SceneKind.PODCAST to tr("小宇宙", "Xiaoyuzhou")),
+    "com.ximalaya.ting.android" to (SceneKind.PODCAST to tr("喜马拉雅", "Ximalaya")),
     "au.com.shiftyjelly.pocketcasts" to (SceneKind.PODCAST to "Pocket Casts"),
     "com.google.android.apps.podcasts" to (SceneKind.PODCAST to "Google Podcasts"),
-    "tv.danmaku.bili" to (SceneKind.VIDEO to "哔哩哔哩"),
-    "com.ss.android.ugc.aweme" to (SceneKind.VIDEO to "抖音"),
+    "tv.danmaku.bili" to (SceneKind.VIDEO to tr("哔哩哔哩", "Bilibili")),
+    "com.ss.android.ugc.aweme" to (SceneKind.VIDEO to tr("抖音", "Douyin")),
     "com.google.android.youtube" to (SceneKind.VIDEO to "YouTube"),
-    "com.tencent.qqlive" to (SceneKind.VIDEO to "腾讯视频"),
-    "com.youku.phone" to (SceneKind.VIDEO to "优酷"),
-    "com.qiyi.video" to (SceneKind.VIDEO to "爱奇艺"),
-    "com.xingin.xhs" to (SceneKind.VIDEO to "小红书"),
-    "com.tencent.wemeet.app" to (SceneKind.CALL to "腾讯会议"),
+    "com.tencent.qqlive" to (SceneKind.VIDEO to tr("腾讯视频", "Tencent Video")),
+    "com.youku.phone" to (SceneKind.VIDEO to tr("优酷", "Youku")),
+    "com.qiyi.video" to (SceneKind.VIDEO to tr("爱奇艺", "iQIYI")),
+    "com.xingin.xhs" to (SceneKind.VIDEO to tr("小红书", "Xiaohongshu")),
+    "com.tencent.wemeet.app" to (SceneKind.CALL to tr("腾讯会议", "Tencent Meeting")),
     "us.zoom.videomeetings" to (SceneKind.CALL to "Zoom"),
-    "com.ss.android.lark" to (SceneKind.CALL to "飞书"),
-    "com.alibaba.android.rimet" to (SceneKind.CALL to "钉钉"),
+    "com.ss.android.lark" to (SceneKind.CALL to tr("飞书", "Lark")),
+    "com.alibaba.android.rimet" to (SceneKind.CALL to tr("钉钉", "DingTalk")),
     "com.microsoft.teams" to (SceneKind.CALL to "Teams"),
-    "com.tencent.mm" to (SceneKind.CALL to "微信"),
+    "com.tencent.mm" to (SceneKind.CALL to tr("微信", "WeChat")),
 )
 
 /** 只用来读取“正在播放”的媒体会话；不读取、不保存通知内容。用户可以不开。 */

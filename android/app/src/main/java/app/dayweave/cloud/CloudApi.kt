@@ -21,6 +21,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import app.dayweave.core.tr
 
 @Serializable
 data class LedgerEntry(val at: Long, val kind: String, val seconds: Long = 0, val micros: Long, val note: String = "")
@@ -68,8 +69,8 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     override val problem: String?
         get() = when {
-            base.isBlank() -> "这个版本没有接入拾日云"
-            (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 } == true -> "拾日云余额不足"
+            base.isBlank() -> tr("这个版本没有接入拾日云", "This build isn't connected to Dayweave Cloud")
+            (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 } == true -> tr("拾日云余额不足", "Dayweave Cloud balance is too low")
             else -> null
         }
 
@@ -102,7 +103,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
                 _pricing.value = json.decodeFromString<CloudPricing>(getJson("$base/v1/pricing"))
                 json.decodeFromString<CloudAccount>(authed { getJson("$base/v1/me", it) })
             }.onSuccess { _status.value = CloudStatus.Ready(it) }
-                .onFailure { _status.value = CloudStatus.Failed(it.message ?: "连接失败") }
+                .onFailure { _status.value = CloudStatus.Failed(it.message ?: tr("连接失败", "Couldn't connect")) }
         }
     }
 
@@ -113,12 +114,12 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
         null
     } catch (e: HttpException) {
         when (e.code) {
-            404 -> "兑换码无效"
-            409 -> "兑换码已经用过了"
-            else -> "兑换失败（${e.code}）"
+            404 -> tr("兑换码无效", "Invalid code")
+            409 -> tr("兑换码已经用过了", "This code has already been used")
+            else -> tr("兑换失败（${e.code}）", "Couldn't redeem (${e.code})")
         }
     } catch (e: Exception) {
-        "网络不可用"
+        tr("网络不可用", "No network")
     }
 
     override fun recognize(pcm: ShortArray, from: Int, to: Int): Recognition {

@@ -25,6 +25,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import app.dayweave.core.tr
 
 private const val TAG = "Dayweave"
 /** 澎湃 OS / MIUI 自带通话录音的位置。 */
@@ -120,7 +121,7 @@ class CallRecordings(
         val startedAt = match?.groupValues?.get(3)?.let {
             runCatching { LocalDateTime.parse(it, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")).atZone(zone).toInstant().toEpochMilli() }.getOrNull()
         } ?: modified
-        val contact = who ?: number ?: "未知号码"
+        val contact = who ?: number ?: tr("未知号码", "Unknown number")
         val scene = Scene(SceneKind.CALL, app = contact, title = number?.takeIf { who != null })
 
         var part: WavWriter? = null

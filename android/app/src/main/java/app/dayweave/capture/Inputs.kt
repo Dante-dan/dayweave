@@ -13,6 +13,7 @@ import app.dayweave.core.InputSelection
 import app.dayweave.core.SAMPLE_RATE
 import kotlin.concurrent.thread
 import kotlin.math.max
+import app.dayweave.core.tr
 
 private const val TAG = "Dayweave"
 private val BT_TYPES = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET)
@@ -124,19 +125,19 @@ class MicInput(
                         releaseBluetooth()
                         rec.preferredDevice = builtin()
                         yielded = true
-                        onEvent("耳机正在放别的声音，已让出，暂用手机麦克风")
+                        onEvent(tr("耳机正在放别的声音，已让出，暂用手机麦克风", "Earbuds are busy with other audio. Using the phone mic for now"))
                     }
                     onBluetooth && audio.communicationDevice?.let(selection::matches) != true -> {
                         releaseBluetooth()
                         rec.preferredDevice = builtin()
-                        onEvent("${selection.name} 已断开，暂用手机麦克风")
+                        onEvent(tr("${selection.name} 已断开，暂用手机麦克风", "${selection.name} disconnected. Using the phone mic for now"))
                     }
                     !onBluetooth && !scene.busy && now - quietSince >= RECLAIM_AFTER_MS && now - lastTry >= RETRY_INTERVAL_MS -> {
                         lastTry = now
                         if (acquireBluetooth()) {
                             rec.preferredDevice = bluetoothInput()
                             yielded = false
-                            onEvent("已接回 ${selection.name}")
+                            onEvent(tr("已接回 ${selection.name}", "Back on ${selection.name}"))
                         }
                     }
                 }
@@ -196,7 +197,7 @@ class MicInput(
                 it.startRecording()
             }
     } catch (e: SecurityException) {
-        onEvent("没有录音权限")
+        onEvent(tr("没有录音权限", "Microphone permission is off"))
         null
     }
 

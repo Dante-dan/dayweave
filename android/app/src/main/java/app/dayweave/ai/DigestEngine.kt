@@ -24,6 +24,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import app.dayweave.core.tr
 
 @Serializable
 data class Cited(val text: String, val segmentIds: List<String> = emptyList())
@@ -160,7 +161,7 @@ class DigestEngine(
         }
         setState(date, DigestState.Generating)
         try {
-            val text = ai.generateJson(SYSTEM, transcript(date, sources), SCHEMA)
+            val text = ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, transcript(date, sources), SCHEMA)
             val digest = json.decodeFromString<DayDigest>(withDate(text, date)).copy(
                 date = date.toString(),
                 sourceIds = sources.map { it.id },
@@ -174,15 +175,15 @@ class DigestEngine(
             Log.w("Dayweave", "digest $date failed", e)
             val setup = e.code == 403 || e.code == 401
             val message = when {
-                e.code == 402 -> "拾日云余额不足"
-                setup -> "整理服务拒绝了请求，请检查密钥或权限"
-                e.code >= 500 -> "整理服务暂时不可用"
-                else -> "整理失败（${e.code}）"
+                e.code == 402 -> tr("拾日云余额不足", "Dayweave Cloud balance is too low")
+                setup -> tr("整理服务拒绝了请求，请检查密钥或权限", "The AI service refused the request. Check the key or permissions")
+                e.code >= 500 -> tr("整理服务暂时不可用", "The AI service is unavailable right now")
+                else -> tr("整理失败（${e.code}）", "Couldn't write the digest (${e.code})")
             }
             setState(date, DigestState.Failed(message, setup || e.code == 402))
         } catch (e: Exception) {
             Log.w("Dayweave", "digest $date failed", e)
-            setState(date, DigestState.Failed("整理失败：${e.message ?: e.javaClass.simpleName}", needsSetup = false))
+            setState(date, DigestState.Failed(tr("整理失败：${e.message ?: e.javaClass.simpleName}", "Couldn't write the digest: ${e.message ?: e.javaClass.simpleName}"), needsSetup = false))
         }
     }
 

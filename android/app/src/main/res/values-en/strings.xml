@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dayweave</string>
+    <string name="action_stop">Stop recording</string>
+    <string name="action_toggle">Pause or resume</string>
+</resources>

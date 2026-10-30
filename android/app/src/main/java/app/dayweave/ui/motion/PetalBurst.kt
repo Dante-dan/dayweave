@@ -23,6 +23,9 @@ enum class Petals {
 
     /** 命名、完成：花瓣绕着中心转半圈再散开，像被轻轻拾起。 */
     ORBIT,
+
+    /** 结束记录（夕拾）：花瓣从花边沿贝塞尔曲线飘下，落进下方浮现的掌心弧里，停一停再淡去。 */
+    GATHER,
 }
 
 /**
@@ -79,6 +82,35 @@ fun PetalBurst(
                     val pos = start + Offset(sway, fall)
                     val spin = angle * 57.3f + 50f * sin(TAU * 0.9f * t + i)
                     petal(pos, petalSize, spin, tint, alpha = bell(0.15f + p * 0.85f) * 0.9f)
+                }
+                Petals.GATHER -> {
+                    // 每片花瓣错开 30ms 出发；路径是二次贝塞尔：起点在花的上半圈，控制点向外上方，终点排在掌心弧上
+                    val local = ((p - i * 0.025f) / 0.62f).coerceIn(0f, 1f)
+                    val from = center + Offset(cos(angle), sin(angle) * 0.6f - 0.35f) * r0
+                    val slot = 0.18f + 0.64f * (i + 0.5f) / count // 在掌心弧上的位置（0..1 对应左到右）
+                    val theta = Math.PI.toFloat() * (1 - slot)
+                    val cradle = r0 * 1.35f
+                    val to = center + Offset(cos(theta) * cradle, sin(theta) * cradle * 0.55f + r0 * 0.95f)
+                    val ctrl = Offset((from.x + to.x) / 2 + (from.x - center.x) * 0.6f, minOf(from.y, to.y) - unit * 0.25f)
+                    val eased = easeInOutCubic(local)
+                    val sway = unit * 0.03f * sin(TAU * 1.6f * local + i) * (1 - local)
+                    val pos = quadBezier(from, ctrl, to, eased) + Offset(sway, 0f)
+                    // 落定时轻轻一弹：springImpulse 给出一个衰减的小起伏
+                    val land = if (local >= 1f) springImpulse((p - (i * 0.025f + 0.62f)) * durationMs / 1000f) * unit * 0.02f else 0f
+                    val fade = 1f - ((p - 0.82f) / 0.18f).coerceIn(0f, 1f)
+                    val rest = theta * 57.3f + 90f
+                    petal(pos - Offset(0f, land), petalSize * 0.9f, angle * 57.3f * (1 - eased) + rest * eased, tint, alpha = fade * (0.4f + 0.6f * local))
+                    if (i == 0) {
+                        // 掌心：一道浅浅的弧，随花瓣落下浮现、最后一起淡去
+                        val show = ((p - 0.3f) / 0.25f).coerceIn(0f, 1f) * fade
+                        drawArc(
+                            Hue.Rose, 20f, 140f, false,
+                            topLeft = Offset(center.x - cradle, center.y + r0 * 0.95f - cradle * 0.55f),
+                            size = androidx.compose.ui.geometry.Size(cradle * 2, cradle * 1.1f),
+                            alpha = 0.55f * show,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(unit * 0.025f, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                        )
+                    }
                 }
                 Petals.ORBIT -> {
                     // 极坐标：θ 走过 3/4 圈（缓入缓出），半径在中段膨胀再收，最后向外散开

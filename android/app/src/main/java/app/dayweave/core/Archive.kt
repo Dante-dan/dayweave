@@ -11,12 +11,21 @@ enum class SourceKind { MIC, PLAYBACK, CALL }
 
 /** 手机当时在放什么。只读系统公开的播放状态，不录制这些声音。 */
 @Serializable
-enum class SceneKind(val label: String, val doing: String) {
-    MUSIC("听音乐", "听音乐时"),
-    PODCAST("听播客", "听播客时"),
-    VIDEO("看视频", "看视频时"),
-    CALL("通话", "通话或开会时"),
-    MEDIA("播放声音", "手机在播放声音时"),
+enum class SceneKind(
+    private val zhLabel: String,
+    private val enLabel: String,
+    private val zhDoing: String,
+    private val enDoing: String,
+) {
+    MUSIC("听音乐", "Music", "听音乐时", "while listening to music"),
+    PODCAST("听播客", "Podcast", "听播客时", "while listening to a podcast"),
+    VIDEO("看视频", "Video", "看视频时", "while watching a video"),
+    CALL("通话", "Call", "通话或开会时", "during a call or meeting"),
+    MEDIA("播放声音", "Playing", "手机在播放声音时", "while the phone was playing audio");
+
+    val label get() = tr(zhLabel, enLabel)
+    /** 用于句子里：“听音乐时……”/ “… while listening to music”。 */
+    val doing get() = tr(zhDoing, enDoing)
 }
 
 /** 片段发生时的场景：哪类声音、哪个 App、正在放什么（开启“识别正在播放的内容”后才有 App 与标题）。 */
@@ -88,7 +97,7 @@ data class Person(
     /** 头像上的字：主人是“我”，标注过的人取名字的第一个字，匿名说话人取编号。 */
     val initial: String
         get() = when {
-            isOwner -> "我"
+            isOwner -> tr("我", "Me")
             named -> name.trim().take(1).uppercase()
             else -> name.filter { it.isDigit() }.ifEmpty { name.take(1) }
         }

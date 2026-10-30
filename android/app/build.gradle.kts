@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,8 +18,10 @@ android {
         versionCode = 2
         versionName = "0.2"
         ndk { abiFilters += "arm64-v8a" }
-        // 拾日云的地址。源码版构建留空，只能自带密钥：./gradlew assembleRelease -PcloudUrl=https://...
-        buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: ""}\"")
+        // 拾日云的地址：-PcloudUrl=… 优先，其次本机 local.properties 里的 cloudUrl（不进仓库）；都没有就是源码版，只能自带密钥。
+        val localCloud = rootProject.file("local.properties").takeIf { it.exists() }
+            ?.let { f -> Properties().apply { f.inputStream().use { load(it) } }.getProperty("cloudUrl") }
+        buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: localCloud ?: ""}\"")
     }
 
     buildTypes {

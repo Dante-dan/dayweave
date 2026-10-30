@@ -65,6 +65,8 @@ import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
 import kotlinx.coroutines.delay
+import app.dayweave.core.tr
+import app.dayweave.core.deviceLabel
 
 @Composable
 fun ConversationScreen(id: String, nav: Navigator) {
@@ -76,7 +78,7 @@ fun ConversationScreen(id: String, nav: Navigator) {
 
     Column(Modifier.fillMaxSize().sharedSegment(id).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, tr("返回", "Back"), modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 if (segment != null) {
@@ -84,17 +86,17 @@ fun ConversationScreen(id: String, nav: Navigator) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         SourceIcon(segment)
                         Text(
-                            "${if (segment.source == SourceKind.PLAYBACK) "播放声音" else segment.device} · ${duration(segment.durationMs)}",
+                            "${if (segment.source == SourceKind.PLAYBACK) tr("播放声音", "Playback") else deviceLabel(segment.device)} · ${duration(segment.durationMs)}",
                             style = Type.Caption,
                         )
                     }
                 }
             }
-            RoundGlassButton({ confirmDelete = true }) { Icon(Icons.Outlined.DeleteOutline, "删除", tint = Ink.Primary, modifier = Modifier.size(20.dp)) }
+            RoundGlassButton({ confirmDelete = true }) { Icon(Icons.Outlined.DeleteOutline, tr("删除", "Delete"), tint = Ink.Primary, modifier = Modifier.size(20.dp)) }
         }
 
         if (segment == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("这段对话已删除", style = Type.Caption) }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(tr("这段对话已删除", "This conversation was deleted"), style = Type.Caption) }
             return@Column
         }
 
@@ -118,9 +120,9 @@ fun ConversationScreen(id: String, nav: Navigator) {
                             Avatar(p, 58.dp, ring = p?.isOwner == true || p?.named == false)
                             Text(
                                 when {
-                                    p == null -> "未识别"
+                                    p == null -> tr("未识别", "Unknown")
                                     p.isOwner || p.named -> p.name
-                                    else -> "${p.name} · 标注"
+                                    else -> tr("${p.name} · 标注", "${p.name} · name")
                                 },
                                 style = Type.Caption.copy(color = if (p != null && !p.isOwner && !p.named) Ink.Pink else Ink.Primary),
                                 modifier = Modifier.padding(top = 6.dp),
@@ -132,7 +134,7 @@ fun ConversationScreen(id: String, nav: Navigator) {
             segment.scene?.let { scene ->
                 item("scene") {
                     Box(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
-                        SceneChip(scene, prefix = "这段对话发生在${scene.kind.doing.removeSuffix("时")}")
+                        SceneChip(scene, prefix = tr("这段对话发生在${scene.kind.doing.removeSuffix("时")}", "Happened ${scene.kind.doing}"))
                     }
                 }
             }
@@ -150,10 +152,10 @@ fun ConversationScreen(id: String, nav: Navigator) {
             item("footer") {
                 Text(
                     buildString {
-                        val langs = segment.languages.map { if (it.startsWith("cmn")) "中文" else if (it.startsWith("en")) "English" else it }
+                        val langs = segment.languages.map { if (it.startsWith("cmn")) tr("中文", "Chinese") else if (it.startsWith("en")) "English" else it }
                         if (langs.isNotEmpty()) append(langs.joinToString(" · ")).append("\n")
-                        if (segment.speechMs > 0) append("有效人声 ${duration(segment.speechMs)}，静音与环境音未上传\n")
-                        append("音频已在转写后删除，只保留文字")
+                        if (segment.speechMs > 0) append(tr("有效人声 ${duration(segment.speechMs)}，静音与环境音未上传\n", "${duration(segment.speechMs)} of voice; silence and room noise were never uploaded\n"))
+                        append(tr("音频已在转写后删除，只保留文字", "The audio was deleted after transcription. Only the text is kept"))
                     },
                     style = Type.Micro,
                     textAlign = TextAlign.Center,
@@ -166,16 +168,16 @@ fun ConversationScreen(id: String, nav: Navigator) {
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("删除这段对话？", style = Type.Title) },
-            text = { Text("文字档案会从这台手机上永久删除。", style = Type.Body) },
+            title = { Text(tr("删除这段对话？", "Delete this conversation?"), style = Type.Title) },
+            text = { Text(tr("文字档案会从这台手机上永久删除。", "The transcript will be permanently removed from this phone."), style = Type.Body) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     nav.back()
                     graph.archive.delete(id)
-                }) { Text("删除", color = Ink.Danger, fontWeight = FontWeight.SemiBold) }
+                }) { Text(tr("删除", "Delete"), color = Ink.Danger, fontWeight = FontWeight.SemiBold) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消", color = Ink.Primary) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(tr("取消", "Cancel"), color = Ink.Primary) } },
             containerColor = Ink.Surface,
         )
     }
@@ -201,7 +203,7 @@ private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boo
             Text(clock(segmentStart + turn.startMs), style = Type.Micro, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
         }
         if (showName && !mine) {
-            Text(person?.name ?: "未识别", style = Type.Micro.copy(color = Ink.Secondary), modifier = Modifier.padding(start = 44.dp, bottom = 3.dp))
+            Text(person?.name ?: tr("未识别", "Unknown"), style = Type.Micro.copy(color = Ink.Secondary), modifier = Modifier.padding(start = 44.dp, bottom = 3.dp))
         }
         Row(verticalAlignment = Alignment.Bottom) {
             if (!mine) {

@@ -51,6 +51,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import app.dayweave.core.tr
 
 /** 按下时轻微缩小、松开时弹回，代替 Material 的水波纹。 */
 fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true, scaleTo: Float = 0.96f): Modifier = composed {
@@ -168,25 +169,33 @@ fun localDate(epochMs: Long): LocalDate = Instant.ofEpochMilli(epochMs).atZone(z
 fun dayLabel(date: LocalDate): String {
     val today = LocalDate.now(zone)
     return when (date) {
-        today -> "今天"
-        today.minusDays(1) -> "昨天"
-        else -> date.format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA))
+        today -> tr("今天", "Today")
+        today.minusDays(1) -> tr("昨天", "Yesterday")
+        else -> longDate(date)
     }
 }
 
 fun duration(ms: Long): String {
     val s = ms / 1000
     return when {
-        s < 60 -> "${s} 秒"
-        s < 3600 -> "${s / 60} 分 ${s % 60} 秒"
-        else -> "${s / 3600} 小时 ${s % 3600 / 60} 分"
+        s < 60 -> tr("${s} 秒", "${s}s")
+        s < 3600 -> tr("${s / 60} 分 ${s % 60} 秒", "${s / 60}m ${s % 60}s")
+        else -> tr("${s / 3600} 小时 ${s % 3600 / 60} 分", "${s / 3600}h ${s % 3600 / 60}m")
     }
 }
 
 /** 列表里的总时长：不足 1 分钟时显示秒，避免出现“0 分钟”。 */
-fun minutes(ms: Long): String = if (ms < 60_000) "${ms / 1000} 秒" else "${ms / 60_000} 分钟"
+fun minutes(ms: Long): String = if (ms < 60_000) tr("${ms / 1000} 秒", "${ms / 1000} sec") else tr("${ms / 60_000} 分钟", "${ms / 60_000} min")
 
 fun stopwatch(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d:%02d".format(s / 3600, s % 3600 / 60, s % 60)
 }
+
+/** “10月30日 星期五” / “Fri, Oct 30”。 */
+fun longDate(date: LocalDate): String =
+    date.format(DateTimeFormatter.ofPattern(tr("M月d日 EEEE", "EEE, MMM d"), app.dayweave.core.Lang.locale))
+
+/** “10月30日 21:43” / “Oct 30, 21:43”。 */
+fun dateTime(epochMs: Long): String =
+    DateTimeFormatter.ofPattern(tr("M月d日 HH:mm", "MMM d, HH:mm"), app.dayweave.core.Lang.locale).format(Instant.ofEpochMilli(epochMs).atZone(zone))

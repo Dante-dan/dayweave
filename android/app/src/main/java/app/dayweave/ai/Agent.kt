@@ -28,6 +28,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import app.dayweave.core.tr
 
 /** 拾日主动给出的一个建议：设闹钟、加日程，或者记一件要做的事。 */
 @Serializable
@@ -120,8 +121,8 @@ class Agent(
 
     init {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "拾日的提醒", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "从对话里发现约定和要做的事时提醒你"
+            NotificationChannel(CHANNEL_ID, tr("拾日的提醒", "Reminders from Dayweave"), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = tr("从对话里发现约定和要做的事时提醒你", "Lets you know when a conversation contains a plan or something to do")
             },
         )
     }
@@ -145,7 +146,7 @@ class Agent(
                 val ai = model()
                 if (ai.problem != null) return@withLock
                 val proposed = runCatching {
-                    json.decodeFromString<Proposals>(ai.generateJson(SYSTEM, prompt(segment), SCHEMA)).actions
+                    json.decodeFromString<Proposals>(ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, prompt(segment), SCHEMA)).actions
                 }.onFailure { Log.w("Dayweave", "agent failed", it) }.getOrNull() ?: return@withLock
                 val now = System.currentTimeMillis()
                 val fresh = proposed.filter { it.confidence >= MIN_CONFIDENCE }.mapNotNull { p ->
@@ -193,7 +194,7 @@ class Agent(
     }
 
     private fun notify(s: Suggestion) {
-        val clock = s.at?.let { DateTimeFormatter.ofPattern("M月d日 HH:mm").withZone(zone).format(Instant.ofEpochMilli(it)) }
+        val clock = s.at?.let { DateTimeFormatter.ofPattern(tr("M月d日 HH:mm", "MMM d, HH:mm"), app.dayweave.core.Lang.locale).withZone(zone).format(Instant.ofEpochMilli(it)) }
         val builder = android.app.Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_listen)
             .setContentTitle(listOfNotNull(clock, s.title).joinToString(" · "))
@@ -202,10 +203,10 @@ class Agent(
             .setContentIntent(actionIntent(s, "open"))
             .setAutoCancel(true)
         if (s.at != null) {
-            builder.addAction(action(s, "alarm", if (s.kind == "event") "提前 15 分钟提醒" else "设闹钟"))
-            builder.addAction(action(s, "event", "加到日程"))
+            builder.addAction(action(s, "alarm", if (s.kind == "event") tr("提前 15 分钟提醒", "Remind 15 min early") else tr("设闹钟", "Set alarm")))
+            builder.addAction(action(s, "event", tr("加到日程", "Add to calendar")))
         }
-        builder.addAction(action(s, "dismiss", "忽略"))
+        builder.addAction(action(s, "dismiss", tr("忽略", "Dismiss")))
         context.getSystemService(NotificationManager::class.java).notify(s.id.hashCode(), builder.build())
     }
 

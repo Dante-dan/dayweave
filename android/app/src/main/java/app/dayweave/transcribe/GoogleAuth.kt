@@ -11,6 +11,7 @@ import java.net.URLEncoder
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
+import app.dayweave.core.tr
 
 /**
  * 用户自己的 Google Cloud 服务账号（源码版自带密钥）。凭证放在 App 私有目录 files/google-sa.json，
@@ -37,8 +38,8 @@ class GoogleAuth(private val file: File) {
     @Synchronized
     fun import(text: String) {
         val sa = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
-        require(sa != null && sa["type"]?.jsonPrimitive?.content == "service_account") { "这不是服务账号 JSON" }
-        require(listOf("project_id", "private_key", "client_email", "token_uri").all { sa.containsKey(it) }) { "服务账号 JSON 缺少字段" }
+        require(sa != null && sa["type"]?.jsonPrimitive?.content == "service_account") { tr("这不是服务账号 JSON", "This isn't a service account JSON") }
+        require(listOf("project_id", "private_key", "client_email", "token_uri").all { sa.containsKey(it) }) { tr("服务账号 JSON 缺少字段", "The service account JSON is missing fields") }
         val tmp = File(file.parentFile, "${file.name}.tmp")
         tmp.writeText(text)
         tmp.renameTo(file)

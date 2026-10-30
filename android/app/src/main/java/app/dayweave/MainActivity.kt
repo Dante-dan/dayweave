@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import app.dayweave.core.tr
 
 class MainActivity : ComponentActivity(), Actions {
 
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity(), Actions {
                     graph.auth.import(text)
                 }.exceptionOrNull()
             }
-            done(error?.message?.let { if (error is IllegalArgumentException) it else "读取失败：$it" })
+            done(error?.message?.let { if (error is IllegalArgumentException) it else tr("读取失败：$it", "Couldn't read the file: $it") })
         }
     }
 

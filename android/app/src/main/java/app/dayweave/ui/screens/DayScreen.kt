@@ -60,6 +60,7 @@ import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import app.dayweave.core.tr
 
 /** 带来源的一条结论。 */
 private data class Line(val text: String, val ids: List<String>, val tag: String? = null)
@@ -84,9 +85,9 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
     ) {
         item("bar") {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, tr("返回", "Back"), modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
                 Spacer(Modifier.weight(1f))
-                RoundGlassButton({ graph.digest.refresh(date, force = true) }) { Icon(Icons.Outlined.Refresh, "重新整理", modifier = Modifier.size(20.dp)) }
+                RoundGlassButton({ graph.digest.refresh(date, force = true) }) { Icon(Icons.Outlined.Refresh, tr("重新整理", "Rewrite"), modifier = Modifier.size(20.dp)) }
             }
         }
 
@@ -96,12 +97,12 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    "${dayLabel(date)} · ${date.format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA))}",
+                    "${dayLabel(date)} · ${app.dayweave.ui.components.longDate(date)}",
                     style = Type.Caption.copy(fontWeight = FontWeight.Medium),
                 )
                 when {
                     digest != null -> {
-                        if (state is DigestState.Generating) Sparkle("正在用新的对话更新…")
+                        if (state is DigestState.Generating) Sparkle(tr("正在用新的对话更新…", "Updating with new conversations…"))
                         Text(digest.headline, style = Type.Display)
                         Text(digest.summary, style = Type.Body.copy(color = Ink.Primary.copy(alpha = 0.85f)))
                         if (digest.topics.isNotEmpty()) {
@@ -111,27 +112,27 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                         }
                     }
                     state is DigestState.Generating -> {
-                        Sparkle("秘书正在整理…")
+                        Sparkle(tr("秘书正在整理…", "Writing your day…"))
                         ShimmerLines(4)
                     }
                     state is DigestState.Failed -> {
                         Text(state.message, style = Type.Title)
-                        Text("下面是这一天的全部对话原文。", style = Type.Caption)
+                        Text(tr("下面是这一天的全部对话原文。", "Below are all of this day's conversations."), style = Type.Caption)
                     }
-                    else -> Text("这一天还没有整理", style = Type.Title)
+                    else -> Text(tr("这一天还没有整理", "No digest for this day yet"), style = Type.Title)
                 }
             }
         }
 
         if (digest != null) {
             val sections = listOf(
-                "要跟进" to digest.followUps.map {
-                    Line(it.text, it.segmentIds, when (it.owner) { "me" -> "我"; "other" -> "对方"; else -> "待确认" })
+                tr("要跟进", "Follow up") to digest.followUps.map {
+                    Line(it.text, it.segmentIds, when (it.owner) { "me" -> tr("我", "Me"); "other" -> tr("对方", "Them"); else -> tr("待确认", "Unclear") })
                 },
-                "做了的决定" to digest.decisions.map { Line(it.text, it.segmentIds) },
-                "今天的经历" to digest.highlights.map { Line(it.text, it.segmentIds) },
-                "值得留意" to digest.insights.map {
-                    Line(it.text, it.segmentIds, when (it.kind) { "fact" -> "事实"; "suggestion" -> "建议"; else -> "推测" })
+                tr("做了的决定", "Decisions") to digest.decisions.map { Line(it.text, it.segmentIds) },
+                tr("今天的经历", "What happened") to digest.highlights.map { Line(it.text, it.segmentIds) },
+                tr("值得留意", "Worth noticing") to digest.insights.map {
+                    Line(it.text, it.segmentIds, when (it.kind) { "fact" -> tr("事实", "Fact"); "suggestion" -> tr("建议", "Suggestion"); else -> tr("推测", "Inference") })
                 },
             ).filter { it.second.isNotEmpty() }
             sections.forEachIndexed { i, (title, lines) ->
@@ -140,7 +141,7 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
         }
 
         item("convs") {
-            Text("当天的对话", style = Type.Headline, modifier = Modifier.padding(start = 6.dp, top = 12.dp))
+            Text(tr("当天的对话", "Conversations"), style = Type.Headline, modifier = Modifier.padding(start = 6.dp, top = 12.dp))
         }
         items(daySegments, key = { it.id }) { s ->
             ConversationCard(
@@ -152,7 +153,12 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
         }
         item("note") {
             Text(
-                digest?.let { "由 ${it.model.ifBlank { "AI" }} 根据文字档案整理 · 与原文分开保存，可随时重新生成" } ?: "",
+                digest?.let {
+                    tr(
+                        "由 ${it.model.ifBlank { "AI" }} 根据文字档案整理 · 与原文分开保存，可随时重新生成",
+                        "Written by ${it.model.ifBlank { "AI" }} from your transcripts · kept apart from them, can be rewritten any time",
+                    )
+                } ?: "",
                 style = Type.Micro,
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp),
             )
@@ -185,7 +191,7 @@ private fun Section(title: String, lines: List<Line>, order: Int, byId: Map<Stri
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         line.tag?.let { Tag(it, filled = true) }
                         line.ids.mapNotNull(byId::get).forEach { s ->
-                            Tag("${clock(s.startedAt)} 原文", onClick = { nav.openConversation(s.id) })
+                            Tag(tr("${clock(s.startedAt)} 原文", "${clock(s.startedAt)} source"), onClick = { nav.openConversation(s.id) })
                         }
                     }
                 }

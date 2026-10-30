@@ -88,6 +88,7 @@ import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import app.dayweave.core.tr
 
 /** 服务与用量：在拾日云（按有效转录时长付费）和自带密钥（源码版）之间切换。 */
 @Composable
@@ -100,12 +101,12 @@ fun ServiceScreen(nav: Navigator, actions: Actions) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, tr("返回", "Back"), modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
         }
         Column(Modifier.padding(start = 4.dp)) {
-            Text("服务与用量", style = Type.Display)
+            Text(tr("服务与用量", "Service & usage"), style = Type.Display)
             Text(
-                if (cloudAvailable) "用拾日云省心，或者填自己的密钥" else "源码版：转写和整理都使用你自己的密钥",
+                if (cloudAvailable) tr("用拾日云省心，或者填自己的密钥", "Use Dayweave Cloud, or bring your own keys") else tr("源码版：转写和整理都使用你自己的密钥", "Source build: transcription and digests use your own keys"),
                 style = Type.Caption, modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -127,7 +128,7 @@ fun ServiceScreen(nav: Navigator, actions: Actions) {
 /** 两段式玻璃切换，高亮块回弹滑动。 */
 @Composable
 private fun ModeSwitch(mode: ServiceMode, onChange: (ServiceMode) -> Unit) {
-    val options = listOf(ServiceMode.CLOUD to "拾日云", ServiceMode.OWN to "自带密钥")
+    val options = listOf(ServiceMode.CLOUD to tr("拾日云", "Dayweave Cloud"), ServiceMode.OWN to tr("自带密钥", "Own keys"))
     BoxWithConstraints(Modifier.fillMaxWidth().glass(RoundedCornerShape(50), elevation = 4.dp).height(48.dp).padding(4.dp)) {
         val half = maxWidth / 2
         val x by animateDpAsState(if (mode == ServiceMode.CLOUD) 0.dp else half, spring(dampingRatio = 0.75f, stiffness = 420f), label = "x")
@@ -153,9 +154,9 @@ private fun CloudPanel() {
     when (val s = status) {
         is CloudStatus.Ready -> BalanceCard(s.account)
         is CloudStatus.Failed -> Card {
-            Text("暂时连不上拾日云", style = Type.Headline)
+            Text(tr("暂时连不上拾日云", "Can't reach Dayweave Cloud right now"), style = Type.Headline)
             Text(s.message, style = Type.Caption, maxLines = 3)
-            Pill("重试") { graph.cloud.refresh() }
+            Pill(tr("重试", "Retry")) { graph.cloud.refresh() }
         }
         else -> Card { ShimmerLines(3) }
     }
@@ -163,15 +164,15 @@ private fun CloudPanel() {
     RedeemCard()
     (status as? CloudStatus.Ready)?.account?.ledger?.takeIf { it.isNotEmpty() }?.let { ledger ->
         Card {
-            Label("最近的记录")
+            Label(tr("最近的记录", "Recent activity"))
             ledger.take(12).forEach { e ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             when (e.kind) {
-                                "transcribe" -> "转写 ${e.seconds} 秒人声"
-                                "redeem" -> "兑换 ${e.note}"
-                                "trial" -> "新用户体验额度"
+                                "transcribe" -> tr("转写 ${e.seconds} 秒人声", "Transcribed ${e.seconds}s of voice")
+                                "redeem" -> tr("兑换 ${e.note}", "Redeemed ${e.note}")
+                                "trial" -> tr("新用户体验额度", "Welcome credit")
                                 else -> e.note.ifBlank { e.kind }
                             },
                             style = Type.Body,
@@ -195,13 +196,13 @@ private fun BalanceCard(account: CloudAccount) {
             .clip(RoundedCornerShape(26.dp)).background(Glass.Veil.copy(alpha = 0.9f)).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("余额", style = Type.Micro.copy(color = Ink.Secondary))
+        Text(tr("余额", "Balance"), style = Type.Micro.copy(color = Ink.Secondary))
         Text(usd(account.balanceMicros), style = Type.Display)
-        Text("约可转录 ${account.minutesLeft} 分钟人声", style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
+        Text(tr("约可转录 ${account.minutesLeft} 分钟人声", "About ${account.minutesLeft} minutes of voice left"), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Stat("本月有效转录", "${account.monthSeconds / 60} 分 ${account.monthSeconds % 60} 秒")
-            Stat("本月花费", usd(account.monthMicros))
+            Stat(tr("本月有效转录", "Voice this month"), tr("${account.monthSeconds / 60} 分 ${account.monthSeconds % 60} 秒", "${account.monthSeconds / 60}m ${account.monthSeconds % 60}s"))
+            Stat(tr("本月花费", "Spent this month"), usd(account.monthMicros))
         }
     }
 }
@@ -217,14 +218,14 @@ private fun Stat(label: String, value: String) {
 @Composable
 private fun PricingCard(p: CloudPricing) {
     Card {
-        Label("怎么计费")
+        Label(tr("怎么计费", "How pricing works"))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(usd(p.priceMicrosPerMinute, digits = 3), style = Type.Title)
-            Text(" / 分钟有效人声", style = Type.Caption, modifier = Modifier.padding(bottom = 2.dp))
+            Text(tr(" / 分钟有效人声", " / minute of voice"), style = Type.Caption, modifier = Modifier.padding(bottom = 2.dp))
         }
         Text(
-            "只按真正送去转写的人声时长计费。静音、环境音在手机上就被过滤掉；听音乐、播客和看视频的声音不录、不收费。" +
-                "每日整理不另外收费。" + p.note,
+            tr("只按真正送去转写的人声时长计费。静音、环境音在手机上就被过滤掉；听音乐、播客和看视频的声音不录、不收费。", "You only pay for voice that's actually transcribed. Silence and room noise are filtered on the phone; music, podcasts and videos are never recorded or charged. ") +
+                tr("每日整理不另外收费。", "Daily digests are included.") + p.note,
             style = Type.Caption,
         )
     }
@@ -252,21 +253,21 @@ private fun RedeemCard() {
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     Card {
-        Label("充值")
+        Label(tr("充值", "Top up"))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Field(code, { code = it; message = null }, "输入兑换码", Modifier.weight(1f))
+            Field(code, { code = it; message = null }, tr("输入兑换码", "Enter a code"), Modifier.weight(1f))
             Spacer(Modifier.width(10.dp))
-            Pill(if (busy) "兑换中" else "兑换", icon = Icons.Outlined.Redeem, enabled = code.isNotBlank() && !busy) {
+            Pill(if (busy) tr("兑换中", "Redeeming") else tr("兑换", "Redeem"), icon = Icons.Outlined.Redeem, enabled = code.isNotBlank() && !busy) {
                 busy = true
                 scope.launch {
                     val error = withContext(Dispatchers.IO) { graph.cloud.redeem(code) }
                     busy = false
-                    message = error ?: "已到账"
+                    message = error ?: tr("已到账", "Added")
                     if (error == null) code = ""
                 }
             }
         }
-        message?.let { Text(it, style = Type.Caption.copy(color = if (it == "已到账") Color(0xFF2EB67D) else Ink.Danger)) }
+        message?.let { Text(it, style = Type.Caption.copy(color = if (it == tr("已到账", "Added")) Color(0xFF2EB67D) else Ink.Danger)) }
     }
 }
 
@@ -280,7 +281,7 @@ private fun OwnKeysPanel(actions: Actions) {
     var saMessage by remember { mutableStateOf<String?>(null) }
 
     Card {
-        Header(Icons.Outlined.GraphicEq, "转写 · Google Speech-to-Text", "Chirp 3，中英混说，自动区分说话人")
+        Header(Icons.Outlined.GraphicEq, tr("转写 · Google Speech-to-Text", "Transcription · Google Speech-to-Text"), tr("Chirp 3，中英混说，自动区分说话人", "Chirp 3, mixed Chinese and English, tells speakers apart"))
         if (project != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFF2EB67D), modifier = Modifier.size(18.dp))
@@ -292,32 +293,32 @@ private fun OwnKeysPanel(actions: Actions) {
             }
         } else {
             Text(
-                "在 Google Cloud 控制台创建服务账号，授予“Cloud Speech 客户端”角色（用 Vertex AI 整理时再加“Vertex AI 用户”），下载 JSON 密钥后导入。" +
+                tr("在 Google Cloud 控制台创建服务账号，授予“Cloud Speech 客户端”角色（用 Vertex AI 整理时再加“Vertex AI 用户”），下载 JSON 密钥后导入。", "In the Google Cloud console, create a service account with the Cloud Speech Client role (add Vertex AI User for Vertex digests), download a JSON key and import it. ") +
                 style = Type.Caption,
             )
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill(if (project == null) "导入服务账号 JSON" else "更换", dark = project == null) {
+            Pill(if (project == null) tr("导入服务账号 JSON", "Import service account JSON") else tr("更换", "Replace"), dark = project == null) {
                 actions.importServiceAccount { error ->
-                    saMessage = error ?: "已导入"
+                    saMessage = error ?: tr("已导入", "Imported")
                     saVersion++
                 }
             }
             if (project != null) {
-                Pill("测试") {
-                    saMessage = "正在测试…"
+                Pill(tr("测试", "Test")) {
+                    saMessage = tr("正在测试…", "Testing…")
                     scope.launch {
                         saMessage = withContext(Dispatchers.IO) {
                             runCatching { ChirpClient(graph.auth).recognize(ShortArray(16_000), 0, 16_000) }
-                                .fold({ "连接正常" }, { "失败：${it.message?.take(120)}" })
+                                .fold({ tr("连接正常", "Connected") }, { tr("失败：${it.message?.take(120)}", "Failed: ${it.message?.take(120)}") })
                         }
                     }
                 }
-                Pill("移除") { graph.auth.clear(); saVersion++; saMessage = null }
+                Pill(tr("移除", "Remove")) { graph.auth.clear(); saVersion++; saMessage = null }
             }
         }
         saMessage?.let { Text(it, style = Type.Caption) }
-        Text("密钥只保存在这台手机的 App 私有目录里，不会上传到拾日云。", style = Type.Micro)
+        Text(tr("密钥只保存在这台手机的 App 私有目录里，不会上传到拾日云。", "Keys stay in the app's private storage on this phone and are never sent to Dayweave Cloud."), style = Type.Micro)
     }
 
     AiCard()
@@ -333,7 +334,7 @@ private fun AiCard() {
     val dirty = draft != saved
 
     Card {
-        Header(Icons.Outlined.AutoAwesome, "整理 · AI 模型", "每天的总结、决定、要跟进的事")
+        Header(Icons.Outlined.AutoAwesome, tr("整理 · AI 模型", "Digest · AI model"), tr("每天的总结、决定、要跟进的事", "Daily summary, decisions and follow-ups"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AiProvider.entries.forEach { p ->
                 Pill(p.label, dark = draft.provider == p) { draft = draft.copy(provider = p, model = ""); message = null }
@@ -341,26 +342,26 @@ private fun AiCard() {
         }
         Text(
             when (draft.provider) {
-                AiProvider.GEMINI -> "在 Google AI Studio 创建 API 密钥。"
-                AiProvider.OPENAI -> "支持 OpenAI、DeepSeek、通义、Kimi、OpenRouter 等兼容 Chat Completions 的服务，需要支持 JSON Schema 输出。"
-                AiProvider.VERTEX -> "使用上面导入的服务账号，需要在项目里开通 Vertex AI。"
+                AiProvider.GEMINI -> tr("在 Google AI Studio 创建 API 密钥。", "Create an API key in Google AI Studio.")
+                AiProvider.OPENAI -> tr("支持 OpenAI、DeepSeek、通义、Kimi、OpenRouter 等兼容 Chat Completions 的服务，需要支持 JSON Schema 输出。", "Works with OpenAI, DeepSeek, Qwen, Kimi, OpenRouter and other Chat Completions services that support JSON Schema output.")
+                AiProvider.VERTEX -> tr("使用上面导入的服务账号，需要在项目里开通 Vertex AI。", "Uses the service account above. Vertex AI must be enabled in the project.")
             },
             style = Type.Caption,
         )
         if (draft.provider != AiProvider.VERTEX) {
-            Field(draft.apiKey, { draft = draft.copy(apiKey = it) }, "API 密钥", secret = true)
+            Field(draft.apiKey, { draft = draft.copy(apiKey = it) }, tr("API 密钥", "API key"), secret = true)
         }
         if (draft.provider == AiProvider.OPENAI) {
-            Field(draft.baseUrl, { draft = draft.copy(baseUrl = it) }, "接口地址，默认 https://api.openai.com/v1")
+            Field(draft.baseUrl, { draft = draft.copy(baseUrl = it) }, tr("接口地址，默认 https://api.openai.com/v1", "Base URL, default https://api.openai.com/v1"))
         }
-        Field(draft.model, { draft = draft.copy(model = it) }, "模型，默认 ${draft.defaultModel}")
+        Field(draft.model, { draft = draft.copy(model = it) }, tr("模型，默认 ${draft.defaultModel}", "Model, default ${draft.defaultModel}"))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("保存", dark = true, enabled = dirty) {
+            Pill(tr("保存", "Save"), dark = true, enabled = dirty) {
                 graph.settings.setAi(draft)
-                message = "已保存"
+                message = tr("已保存", "Saved")
             }
-            Pill("测试") {
-                message = "正在测试…"
+            Pill(tr("测试", "Test")) {
+                message = tr("正在测试…", "Testing…")
                 val config = draft
                 scope.launch { message = withContext(Dispatchers.IO) { testAi(config, graph) } }
             }
@@ -377,7 +378,7 @@ private fun testAi(config: AiConfig, graph: app.dayweave.AppGraph): String {
             "只输出 JSON。", "回复 ok 为 true。",
             Json.parseToJsonElement("""{"type":"OBJECT","required":["ok"],"properties":{"ok":{"type":"BOOLEAN"}}}"""),
         )
-    }.fold({ "连接正常 · ${model.name}" }, { "失败：${it.message?.take(160)}" })
+    }.fold({ tr("连接正常 · ${model.name}", "Connected · ${model.name}") }, { tr("失败：${it.message?.take(160)}", "Failed: ${it.message?.take(160)}") })
 }
 
 @Composable
@@ -443,5 +444,4 @@ private fun usd(micros: Long, digits: Int = 2): String = "\$" + "%.${digits}f".f
 
 private fun Double.clean() = if (this % 1.0 == 0.0) toInt().toString() else toString()
 
-private val stampFormat = DateTimeFormatter.ofPattern("M月d日 HH:mm").withZone(ZoneId.systemDefault())
-private fun stamp(ms: Long) = stampFormat.format(Instant.ofEpochMilli(ms))
+private fun stamp(ms: Long) = app.dayweave.ui.components.dateTime(ms)

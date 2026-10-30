@@ -76,6 +76,7 @@ import app.dayweave.ui.components.pressable
 import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
+import app.dayweave.core.tr
 
 /**
  * 一个人的主页：标注名字（头像随之变成名字的第一个字），把认错的声音合并进来，
@@ -103,7 +104,7 @@ fun PersonScreen(id: String, nav: Navigator) {
     ) {
         item("bar") {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, tr("返回", "Back"), modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
             }
         }
         item("hero") {
@@ -133,23 +134,23 @@ fun PersonScreen(id: String, nav: Navigator) {
                 }
                 val total = talks.sumOf { s -> s.turns.filter { it.speakerId == id }.sumOf { it.endMs - it.startMs } }
                 Text(
-                    if (talks.isEmpty()) "还没有对话" else "${talks.size} 段对话 · 说了约 ${minutes(total)} · 最近 ${dayLabel(localDate(talks.first().startedAt))}",
+                    if (talks.isEmpty()) tr("还没有对话", "No conversations yet") else tr("${talks.size} 段对话 · 说了约 ${minutes(total)} · 最近 ${dayLabel(localDate(talks.first().startedAt))}", "${talks.size} conversations · spoke about ${minutes(total)} · last ${dayLabel(localDate(talks.first().startedAt))}"),
                     style = Type.Caption, modifier = Modifier.padding(top = 6.dp),
                 )
                 if (!person.isOwner) {
                     Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Action(Icons.Outlined.Edit, if (person.named) "改名" else "这是谁？") { editing = true }
-                        Action(Icons.Outlined.MergeType, "和别人是同一个人") { merging = true }
+                        Action(Icons.Outlined.Edit, if (person.named) tr("改名", "Rename") else tr("这是谁？", "Who's this?")) { editing = true }
+                        Action(Icons.Outlined.MergeType, tr("和别人是同一个人", "Same person as…")) { merging = true }
                     }
                     Text(
-                        "名字和声纹只存在这台手机上。之后听到同样的声音，会自动认出是 ${person.name}。",
+                        tr("名字和声纹只存在这台手机上。之后听到同样的声音，会自动认出是 ${person.name}。", "Names and voiceprints stay on this phone. Next time this voice is heard, it will be recognized as ${person.name}."),
                         style = Type.Micro, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp),
                     )
                 }
             }
         }
         if (talks.isNotEmpty()) {
-            item("label") { Text("一起的对话", style = Type.Headline, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
+            item("label") { Text(tr("一起的对话", "Conversations together"), style = Type.Headline, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
         }
         items(talks, key = { it.id }) { s ->
             ConversationCard(
@@ -170,8 +171,8 @@ fun PersonScreen(id: String, nav: Navigator) {
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
         ) {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                Text("${person.name} 其实是…", style = Type.Title, modifier = Modifier.padding(horizontal = 6.dp))
-                Text("合并后，两种声音都会认作同一个人，以前的对话也会一起改过来。", style = Type.Caption, modifier = Modifier.padding(6.dp))
+                Text(tr("${person.name} 其实是…", "${person.name} is actually…"), style = Type.Title, modifier = Modifier.padding(horizontal = 6.dp))
+                Text(tr("合并后，两种声音都会认作同一个人，以前的对话也会一起改过来。", "After merging, both voices count as one person, and past conversations are updated too."), style = Type.Caption, modifier = Modifier.padding(6.dp))
                 Column(Modifier.padding(top = 8.dp).glass(RoundedCornerShape(24.dp), elevation = 4.dp)) {
                     targets.forEach { t ->
                         Row(
@@ -188,7 +189,7 @@ fun PersonScreen(id: String, nav: Navigator) {
                             Text(t.name, style = Type.Headline)
                         }
                     }
-                    if (targets.isEmpty()) Text("还没有其他人", style = Type.Caption, modifier = Modifier.padding(20.dp))
+                    if (targets.isEmpty()) Text(tr("还没有其他人", "No one else yet"), style = Type.Caption, modifier = Modifier.padding(20.dp))
                 }
             }
         }
@@ -205,7 +206,7 @@ private fun NameEditor(person: Person, done: (String?) -> Unit) {
             Modifier.width(200.dp).clip(RoundedCornerShape(14.dp)).background(Ink.Surface)
                 .border(1.dp, Ink.Hairline, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            if (text.isEmpty()) Text("例如：妈妈、Alex、王老师", style = Type.Body.copy(color = Ink.Tertiary))
+            if (text.isEmpty()) Text(tr("例如：妈妈、Alex、王老师", "e.g. Mom, Alex, Ms. Wang"), style = Type.Body.copy(color = Ink.Tertiary))
             BasicTextField(
                 text, { text = it.take(20) }, singleLine = true,
                 textStyle = Type.Title.copy(color = Ink.Primary),
@@ -219,7 +220,7 @@ private fun NameEditor(person: Person, done: (String?) -> Unit) {
         Box(
             Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Ink.Primary).pressable({ done(text.takeIf { it.isNotBlank() }) }),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.Check, "保存", tint = Ink.OnPrimary, modifier = Modifier.size(20.dp)) }
+        ) { Icon(Icons.Outlined.Check, tr("保存", "Save"), tint = Ink.OnPrimary, modifier = Modifier.size(20.dp)) }
     }
 }
 

@@ -68,7 +68,10 @@ import app.dayweave.ui.components.LocalHaze
 import app.dayweave.ui.components.frosted
 import app.dayweave.ui.components.pressable
 import androidx.compose.ui.geometry.Offset
-import app.dayweave.ui.motion.LitIcon
+import app.dayweave.ui.motion.Glyph
+import app.dayweave.ui.motion.drawDay
+import app.dayweave.ui.motion.drawTimeline
+import app.dayweave.ui.motion.drawVoice
 import app.dayweave.ui.motion.blossomIcon
 import app.dayweave.ui.screens.CaptureScreen
 import app.dayweave.ui.screens.ConversationScreen
@@ -83,6 +86,7 @@ import app.dayweave.ui.theme.Ink
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import java.time.LocalDate
+import app.dayweave.core.tr
 
 data class DeepLink(
     val tab: String? = null,
@@ -115,10 +119,13 @@ private sealed interface Route {
 }
 
 /** 底栏：选中与否用同一个描边图形，只靠颜色和光影区分。 */
-enum class Tab(val icon: ImageVector, val label: String) {
-    DIGEST(blossomIcon(filled = false), "拾日"),
-    TIMELINE(Icons.Outlined.ViewAgenda, "时间线"),
-    CAPTURE(Icons.Outlined.GraphicEq, "采集"),
+enum class Tab(val icon: ImageVector, private val zh: String, private val en: String) {
+    DIGEST(blossomIcon(filled = false), "拾日", "Today"),
+    TIMELINE(Icons.Outlined.ViewAgenda, "时间线", "Timeline"),
+    CAPTURE(Icons.Outlined.GraphicEq, "采集", "Capture"),
+    ;
+
+    val label get() = tr(zh, en)
 }
 
 /** 页面跳转用的回调集合。 */
@@ -302,9 +309,14 @@ private fun TabBar(tab: Tab, onTab: (Tab) -> Unit) {
                             transitionSpec = { scaleIn(spring(Spring.DampingRatioMediumBouncy), initialScale = 0.7f) + fadeIn() togetherWith fadeOut(tween(90)) },
                             label = "icon",
                         ) { s ->
-                            // 选中时：强调色 + 顶光与投影，拾日的花心点一粒暖金；未选中：同一图形的灰色。
-                            if (s) LitIcon(t.icon, t.label, color = Ink.Accent, heart = if (t == Tab.DIGEST) Offset(0.5f, 0.51f) else null)
-                            else Icon(t.icon, t.label, tint = tint, modifier = Modifier.size(24.dp))
+                            // 多色图标：选中时饱满并带光影，未选中时同一图形降低不透明度
+                            Glyph(selected = s) { a ->
+                                when (t) {
+                                    Tab.DIGEST -> drawDay(alpha = a)
+                                    Tab.TIMELINE -> drawTimeline(a)
+                                    Tab.CAPTURE -> drawVoice(a)
+                                }
+                            }
                         }
                         if (t == Tab.CAPTURE && recording.running) {
                             Box(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-2).dp).size(8.dp).clip(CircleShape).background(Ink.Live))

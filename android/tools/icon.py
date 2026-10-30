@@ -1,6 +1,7 @@
 """拾日的图标：朝花夕拾。
 
-一朵五瓣的花开在晨光到暮色的渐变里（朝 → 夕），一片花瓣沿抛物线飘落、被轻轻拾起。
+一个圆是“日”：上沿细如日光走过的轨迹，下沿渐厚如捧起的掌心。花开在晨光处，
+一片花瓣沿贝塞尔曲线穿过这一天，落进暮色里的掌心。背景从晨光到暮色。
 几何全部由函数算出，同一份数据输出 SVG 预览和 Android 自适应图标（108dp 画布，安全区半径 33dp）。
 
 用法：python3 -I android/tools/icon.py
@@ -47,61 +48,102 @@ def circle(cx, cy, r):
     return f"M{cx - r:.2f},{cy:.2f} a{r:.2f},{r:.2f} 0 1,0 {2 * r:.2f},0 a{r:.2f},{r:.2f} 0 1,0 {-2 * r:.2f},0 Z"
 
 
+# 构图：一个圆就是“日”（一天）。上沿细，是日光走过的轨迹（时间）；下沿渐粗，像捧起的掌心（拾）。
+# 花开在左上的晨光处（朝花），一片花瓣沿贝塞尔曲线穿过这一天，落在右下暮色里的掌心（夕拾）。
+DAY = (54.0, 55.0)
+DAY_R = 22.5
+DAWN_ANGLE = math.radians(212)  # 花在圆上的位置（y 轴向下，从 +x 顺时针）
+
+
+def arc_path(cx, cy, r, a0, a1):
+    """从角度 a0 顺时针画到 a1（弧度）。"""
+    x0, y0 = cx + r * math.cos(a0), cy + r * math.sin(a0)
+    x1, y1 = cx + r * math.cos(a1), cy + r * math.sin(a1)
+    large = 1 if (a1 - a0) % (2 * math.pi) > math.pi else 0
+    return f"M{x0:.2f},{y0:.2f} A{r:.2f},{r:.2f} 0 {large},1 {x1:.2f},{y1:.2f}"
+
+
+def light_arc():
+    """上半圆：日光的轨迹，细。"""
+    return arc_path(*DAY, DAY_R, math.pi + 0.05, 2 * math.pi - 0.05)
+
+
+def cradle():
+    """下半圆：捧起的掌心。用两条半径略不同的弧围成一个两头尖、中间厚的月牙形。"""
+    cx, cy = DAY
+    a0, a1 = -0.02, math.pi + 0.02
+    outer = [(cx + (DAY_R + 1.6 * math.sin(t)) * math.cos(t), cy + (DAY_R + 1.6 * math.sin(t)) * math.sin(t))
+             for t in [a0 + (a1 - a0) * i / 48 for i in range(49)]]
+    inner = [(cx + (DAY_R - 1.9 * math.sin(t)) * math.cos(t), cy + (DAY_R - 1.9 * math.sin(t)) * math.sin(t))
+             for t in [a1 - (a1 - a0) * i / 48 for i in range(49)]]
+    pts = outer + inner
+    return "M" + " L".join(f"{x:.2f},{y:.2f}" for x, y in pts) + " Z"
+
+
+def dawn():
+    return DAY[0] + DAY_R * math.cos(DAWN_ANGLE), DAY[1] + DAY_R * math.sin(DAWN_ANGLE)
+
+
 def blossom():
-    cx, cy = CENTER
-    # 五瓣，略微偏转 -8°，让花有一点随风的姿态
-    return [petal(cx, cy, PETAL_LEN, -8 + i * 72, offset=1.6) for i in range(5)]
+    cx, cy = dawn()
+    return [petal(cx, cy, 9.2, -8 + i * 72, offset=0.8) for i in range(5)]
 
 
 def stamens():
-    """花蕊：一圈小点落在花瓣之间，r = 5.5，角度与花瓣错开半格。"""
-    cx, cy = CENTER
-    return [(cx + 5.5 * math.sin(math.radians(-8 + 36 + i * 72)), cy - 5.5 * math.cos(math.radians(-8 + 36 + i * 72)), 0.95) for i in range(5)]
+    cx, cy = dawn()
+    return [(cx, cy, 1.7)]
+
+
+REST = (DAY[0] + 6.5, DAY[1] + DAY_R - 5.2)
+
+
+def bezier(t, p0, p1, p2):
+    u = 1 - t
+    return u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]
 
 
 def falling():
-    """飘落的花瓣：从花的右下沿抛物线 y = y0 + v t + ½ g t² 落下，留下由大到小的轨迹点。"""
-    cx, cy = CENTER
-    x0, y0 = cx + 15, cy + 13
-    vx, vy, g = 6.0, -2.5, 9.0
-    traj = [(x0 + vx * t, y0 + vy * t + 0.5 * g * t * t) for t in (0.5, 0.9, 1.25)]
-    dots = [(x, y, r, op) for (x, y), r, op in zip(traj, (0.8, 1.0, 1.2), (0.38, 0.55, 0.75))]
-    t = 1.85
-    px, py = x0 + vx * t, y0 + vy * t + 0.5 * g * t * t
-    # 花瓣尖顺着下落方向，像被风托着
-    heading = math.degrees(math.atan2(vy + g * t, vx)) - 90 - 25
-    return petal(px, py, 8.2, heading, width=0.56), dots
+    """花瓣从花飘到掌心：二次贝塞尔，控制点偏右上，先被风托一下再落下。轨迹点由小到大。"""
+    start = dawn()
+    ctrl = (DAY[0] + 16, DAY[1] - 14)
+    trail = [(*bezier(t, start, ctrl, REST), r, op) for t, r, op in ((0.38, 0.75, 0.45), (0.58, 0.95, 0.65), (0.76, 1.15, 0.85))]
+    rest = petal(REST[0] - 4.0, REST[1] + 0.6, 8.0, 72, width=0.6)
+    return trail, rest
 
 
 def svg():
     petals = blossom()
-    fall, dots = falling()
+    trail, rest = falling()
     stops = "".join(f'<stop offset="{o}" stop-color="{c}"/>' for o, c in SKY)
-    body = "".join(f'<path d="{p}" fill="#FFFFFF" fill-opacity="0.96"/>' for p in petals)
-    body += f'<path d="{circle(*CENTER, 3.0)}" fill="#FFD983"/>'
-    body += "".join(f'<path d="{circle(x, y, r)}" fill="#FFD983" fill-opacity="0.9"/>' for x, y, r in stamens())
-    body += "".join(f'<path d="{circle(x, y, r)}" fill="#FFFFFF" fill-opacity="{op}"/>' for x, y, r, op in dots)
-    body += f'<path d="{fall}" fill="#FFFFFF" fill-opacity="0.92"/>'
+    body = f'<path d="{circle(*DAY, DAY_R)}" fill="#FFFFFF" fill-opacity="0.13"/>'
+    body += f'<path d="{light_arc()}" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="1.4" stroke-linecap="round"/>'
+    body += f'<path d="{cradle()}" fill="#FFFFFF" fill-opacity="0.96"/>'
+    body += "".join(f'<path d="{circle(x, y, r)}" fill="#FFFFFF" fill-opacity="{op}"/>' for x, y, r, op in trail)
+    body += f'<path d="{rest}" fill="#FFFFFF"/>'
+    body += "".join(f'<path d="{p}" fill="#FFFFFF" fill-opacity="0.97"/>' for p in petals)
+    body += "".join(f'<path d="{circle(x, y, r)}" fill="#FFD983"/>' for x, y, r in stamens())
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
-<defs><linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">{stops}</linearGradient>
-<radialGradient id="glow" cx="0.3" cy="0.22" r="0.6"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs>
+<defs><linearGradient id="sky" x1="0" y1="0.2" x2="1" y2="0.8">{stops}</linearGradient>
+<radialGradient id="glow" cx="0.3" cy="0.33" r="0.45"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs>
 <rect width="108" height="108" rx="24" fill="url(#sky)"/><rect width="108" height="108" rx="24" fill="url(#glow)"/>{body}</svg>'''
 
 
 def android():
     petals = blossom()
-    fall, dots = falling()
-    items = "".join(f'\n    <path android:fillColor="#F5FFFFFF" android:pathData="{p}" />' for p in petals)
-    items += f'\n    <path android:fillColor="#FFFFD983" android:pathData="{circle(*CENTER, 3.0)}" />'
-    for x, y, r in stamens():
-        items += f'\n    <path android:fillColor="#E6FFD983" android:pathData="{circle(x, y, r)}" />'
-    for x, y, r, op in dots:
+    trail, rest = falling()
+    items = f'\n    <path android:fillColor="#21FFFFFF" android:pathData="{circle(*DAY, DAY_R)}" />'
+    items += f'\n    <path android:pathData="{light_arc()}" android:strokeColor="#99FFFFFF" android:strokeWidth="1.4" android:strokeLineCap="round" />'
+    items += f'\n    <path android:fillColor="#F5FFFFFF" android:pathData="{cradle()}" />'
+    for x, y, r, op in trail:
         items += f'\n    <path android:fillColor="#{int(op * 255):02X}FFFFFF" android:pathData="{circle(x, y, r)}" />'
-    items += f'\n    <path android:fillColor="#EBFFFFFF" android:pathData="{fall}" />'
+    items += f'\n    <path android:fillColor="#FFFFFFFF" android:pathData="{rest}" />'
+    items += "".join(f'\n    <path android:fillColor="#F7FFFFFF" android:pathData="{p}" />' for p in petals)
+    for x, y, r in stamens():
+        items += f'\n    <path android:fillColor="#FFFFD983" android:pathData="{circle(x, y, r)}" />'
     vector = '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">'
     (RES / "drawable").mkdir(parents=True, exist_ok=True)
     (RES / "drawable/ic_launcher_foreground.xml").write_text(f"<!-- 由 android/tools/icon.py 生成：朝花夕拾 -->\n{vector}{items}\n</vector>\n")
-    mono = items.replace('#FFFFD983', '#FF000000')
+    mono = items.replace('#FFFFD983', '#FF000000').replace('android:strokeColor="#99FFFFFF"', 'android:strokeColor="#FF000000"').replace('#21FFFFFF', '#00000000')
     (RES / "drawable/ic_launcher_monochrome.xml").write_text(f"<!-- 由 android/tools/icon.py 生成 -->\n{vector}{mono}\n</vector>\n")
     stops = "".join(f'\n                <item android:offset="{o}" android:color="#FF{c[1:]}" />' for o, c in SKY)
     (RES / "drawable/ic_launcher_background.xml").write_text(f'''<!-- 由 android/tools/icon.py 生成：晨光到暮色 -->
@@ -109,13 +151,13 @@ def android():
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108">{stops}
+            <gradient android:type="linear" android:startX="0" android:startY="22" android:endX="108" android:endY="86">{stops}
             </gradient>
         </aapt:attr>
     </path>
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="radial" android:centerX="32" android:centerY="24" android:gradientRadius="66">
+            <gradient android:type="radial" android:centerX="34" android:centerY="38" android:gradientRadius="50">
                 <item android:offset="0" android:color="#73FFFFFF" />
                 <item android:offset="1" android:color="#00FFFFFF" />
             </gradient>

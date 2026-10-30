@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
+import app.dayweave.core.tr
+import app.dayweave.core.deviceLabel
 
 data class CaptureState(
     val running: Boolean = false,
@@ -107,9 +109,9 @@ class CaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "正在记录", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL_ID, tr("正在记录", "Recording"), NotificationManager.IMPORTANCE_LOW).apply {
                 setShowBadge(false)
-                description = "记录进行中时常驻，可在这里暂停或结束"
+                description = tr("记录进行中时常驻，可在这里暂停或结束", "Shown while recording. Pause or stop from here")
             },
         )
     }
@@ -134,7 +136,7 @@ class CaptureService : Service() {
         val graph = applicationContext.graph
         val selection = graph.settings.input.value ?: listInputs(this).firstOrNull()?.selection
         if (selection == null) {
-            _state.value = CaptureState(notice = "没有可用的麦克风")
+            _state.value = CaptureState(notice = tr("没有可用的麦克风", "No microphone available"))
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
@@ -201,6 +203,7 @@ class CaptureService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         requestTileUpdate()
+        showStandby(this)
     }
 
     private fun requestTileUpdate() {
@@ -211,46 +214,93 @@ class CaptureService : Service() {
     private fun refreshNotification() {
         val s = _state.value
         if (!s.running) return
-        val key = "${s.paused}|${s.yielded}|${s.silenced}|${s.scene?.label}|${s.micName}|${s.micReady}"
+        val key = "${app.dayweave.core.Lang.english}|${s.paused}|${s.yielded}|${s.silenced}|${s.scene?.label}|${s.micName}|${s.micReady}"
         if (key == shownNotification) return
         shownNotification = key
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(s))
     }
 
-    private fun action(action: String, label: String, icon: Int): Notification.Action {
-        val pi = PendingIntent.getService(this, action.hashCode(), Intent(this, CaptureService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE)
-        return Notification.Action.Builder(Icon.createWithResource(this, icon), label, pi).build()
-    }
-
     private fun notification(s: CaptureState): Notification {
-        val open = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java).putExtra("tab", "capture").addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
         val title = when {
-            s.paused -> "拾日已暂停"
-            s.silenced -> "拾日在旁听 · 麦克风被其他 App 占用"
-            else -> "拾日正在安静地聆听"
+            s.paused -> tr("拾日已暂停", "Dayweave is paused")
+            s.silenced -> tr("拾日在旁听 · 麦克风被其他 App 占用", "Dayweave is waiting · another app has the mic")
+            else -> tr("拾日正在安静地聆听", "Dayweave is quietly listening")
         }
         val text = when {
-            s.paused -> "轻触“继续”恢复记录"
-            s.scene != null && s.yielded -> "${s.scene.label} · 已把耳机让出，用手机麦克风"
-            s.scene != null -> "${s.scene.label} · 只记录人声，不录播放的声音"
-            else -> "${s.micName ?: "麦克风"} · 只转写人声，文字存好即删除音频"
+            s.paused -> tr("轻触右侧按钮继续", "Tap the button to resume")
+            s.scene != null && s.yielded -> tr("${s.scene.label} · 已把耳机让出，用手机麦克风", "${s.scene.label} · earbuds handed back, using the phone mic")
+            s.scene != null -> tr("${s.scene.label} · 只记录人声，不录播放的声音", "${s.scene.label} · voices only, playback is never recorded")
+            else -> tr(
+                "${s.micName?.let(::deviceLabel) ?: "麦克风"} · 只转写人声，文字存好即删除音频",
+                "${s.micName?.let(::deviceLabel) ?: "Microphone"} · voices only, audio deleted once transcribed",
+            )
         }
-        return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setSmallIcon(R.drawable.ic_stat_listen)
-            .setContentIntent(open)
+        val toggle = if (s.paused) service(ACTION_RESUME) else service(ACTION_PAUSE)
+        return controls(this, title, text, toggleIcon = if (s.paused) R.drawable.ic_stat_play else R.drawable.ic_stat_pause, toggle = toggle, stop = service(ACTION_STOP))
             .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setCategory(Notification.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(if (s.paused) action(ACTION_RESUME, "继续", R.drawable.ic_stat_listen) else action(ACTION_PAUSE, "暂停", R.drawable.ic_stat_pause))
-            .addAction(action(ACTION_STOP, "结束", R.drawable.ic_stat_stop))
             .build()
     }
+
+    private fun service(action: String) =
+        PendingIntent.getService(this, action.hashCode(), Intent(this, CaptureService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE)
+}
+
+/**
+ * 通知栏里的记录控件。收起状态下就有按钮：记录中是“暂停/继续”和“结束”，没在记录时是一个“开始”。
+ * 自定义布局套在系统的通知外框里，字体和深浅色跟随系统。
+ */
+private fun controls(
+    context: Context,
+    title: String,
+    text: String,
+    toggleIcon: Int,
+    toggle: PendingIntent,
+    stop: PendingIntent?,
+): Notification.Builder {
+    val views = android.widget.RemoteViews(context.packageName, R.layout.notification_capture).apply {
+        setTextViewText(R.id.title, title)
+        setTextViewText(R.id.text, text)
+        setImageViewResource(R.id.toggle, toggleIcon)
+        setOnClickPendingIntent(R.id.toggle, toggle)
+        if (stop != null) setOnClickPendingIntent(R.id.stop, stop) else setViewVisibility(R.id.stop, android.view.View.GONE)
+    }
+    val open = PendingIntent.getActivity(
+        context, 0,
+        Intent(context, MainActivity::class.java).putExtra("tab", "capture").addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+    return Notification.Builder(context, CAPTURE_CHANNEL)
+        .setSmallIcon(R.drawable.ic_stat_listen)
+        .setContentTitle(title)
+        .setContentText(text)
+        .setCustomContentView(views)
+        .setStyle(Notification.DecoratedCustomViewStyle())
+        .setContentIntent(open)
+        .setOnlyAlertOnce(true)
+        .setShowWhen(false)
+        .setCategory(Notification.CATEGORY_SERVICE)
+}
+
+private const val CAPTURE_CHANNEL = "capture"
+private const val CAPTURE_NOTIFICATION = 1
+
+/** 没在记录时，通知栏留一个“开始”入口（可在设置里关掉）。开始要借一个透明界面，因为后台不能直接启动麦克风。 */
+fun showStandby(context: Context) {
+    val manager = context.getSystemService(NotificationManager::class.java)
+    if (CaptureService.state.value.running) return
+    if (!context.graph.settings.standby.value) {
+        manager.cancel(CAPTURE_NOTIFICATION)
+        return
+    }
+    manager.createNotificationChannel(
+        NotificationChannel(CAPTURE_CHANNEL, tr("正在记录", "Recording"), NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
+    )
+    val start = PendingIntent.getActivity(
+        context, 7, Intent(context, StartCaptureActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE,
+    )
+    val n = controls(context, tr("拾日", "Dayweave"), tr("轻触开始，安静地拾起今天说过的话", "Tap to start quietly gathering today's words"), R.drawable.ic_stat_play, start, null)
+        .setOngoing(true)
+        .build()
+    runCatching { manager.notify(CAPTURE_NOTIFICATION, n) }
 }

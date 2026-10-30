@@ -34,6 +34,8 @@ import app.dayweave.ui.motion.bloomTap
 import app.dayweave.ui.sharedSegment
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
+import app.dayweave.core.tr
+import app.dayweave.core.deviceLabel
 
 @Composable
 fun SourceIcon(segment: Segment, modifier: Modifier = Modifier) {
@@ -75,7 +77,7 @@ fun ConversationCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SourceIcon(segment)
                     Text(
-                        "${if (segment.source == SourceKind.PLAYBACK) "播放声音" else segment.device} · ${duration(segment.durationMs)}",
+                        "${if (segment.source == SourceKind.PLAYBACK) tr("播放声音", "Playback") else deviceLabel(segment.device)} · ${duration(segment.durationMs)}",
                         style = Type.Caption,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -103,14 +105,14 @@ fun ConversationCard(
                 SegmentStatus.PENDING, SegmentStatus.TRANSCRIBING -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ShimmerLines()
                     Text(
-                        if (status == SegmentStatus.TRANSCRIBING) "正在转写…" else (segment.error ?: "等待转写"),
+                        if (status == SegmentStatus.TRANSCRIBING) tr("正在转写…", "Transcribing…") else (segment.error ?: tr("等待转写", "Waiting to transcribe")),
                         style = Type.Micro,
                     )
                 }
                 SegmentStatus.FAILED -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(segment.error ?: "转写失败", style = Type.Caption.copy(color = Ink.Danger), modifier = Modifier.weight(1f), maxLines = 2)
+                    Text(segment.error ?: tr("转写失败", "Transcription failed"), style = Type.Caption.copy(color = Ink.Danger), modifier = Modifier.weight(1f), maxLines = 2)
                     Text(
-                        "重试",
+                        tr("重试", "Retry"),
                         style = Type.Caption.copy(color = Ink.Link, fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.pressable(onRetry).padding(start = 12.dp),
                     )

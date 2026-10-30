@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import app.dayweave.core.tr
 
 /** 一种整理模型：给系统提示、用户内容和输出结构，返回 JSON 文本。 */
 interface DigestModel {
@@ -51,7 +52,7 @@ private fun geminiText(response: String): String =
 /** Gemini API（Google AI Studio 的 API 密钥）。 */
 class GeminiApi(private val config: AiConfig) : DigestModel {
     override val name get() = config.effectiveModel
-    override val problem get() = if (config.apiKey.isBlank()) "还没有填写 Gemini API 密钥" else null
+    override val problem get() = if (config.apiKey.isBlank()) tr("还没有填写 Gemini API 密钥", "No Gemini API key yet") else null
 
     override fun generateJson(system: String, user: String, schema: JsonElement): String = geminiText(
         postJson(
@@ -66,7 +67,7 @@ class GeminiApi(private val config: AiConfig) : DigestModel {
 /** Vertex AI 上的 Gemini，复用转写的服务账号。 */
 class VertexGemini(private val auth: GoogleAuth, private val config: AiConfig) : DigestModel {
     override val name get() = config.effectiveModel
-    override val problem get() = if (!auth.available) "还没有导入 Google Cloud 服务账号" else null
+    override val problem get() = if (!auth.available) tr("还没有导入 Google Cloud 服务账号", "No Google Cloud service account yet") else null
 
     override fun generateJson(system: String, user: String, schema: JsonElement): String = geminiText(
         postJson(
@@ -82,7 +83,7 @@ class VertexGemini(private val auth: GoogleAuth, private val config: AiConfig) :
 class OpenAiCompatible(private val config: AiConfig) : DigestModel {
     override val name get() = config.effectiveModel
     override val problem get() = when {
-        config.apiKey.isBlank() -> "还没有填写 API 密钥"
+        config.apiKey.isBlank() -> tr("还没有填写 API 密钥", "No API key yet")
         else -> null
     }
 
@@ -111,7 +112,7 @@ class OpenAiCompatible(private val config: AiConfig) : DigestModel {
 
 /** 拾日云提供的整理，费用已包含在有效转录时长里。 */
 class CloudDigest(private val cloud: CloudApi) : DigestModel {
-    override val name = "拾日云"
+    override val name = tr("拾日云", "Dayweave Cloud")
     override val problem get() = cloud.problem
     override fun generateJson(system: String, user: String, schema: JsonElement) = cloud.generateJson(system, user, schema)
 }

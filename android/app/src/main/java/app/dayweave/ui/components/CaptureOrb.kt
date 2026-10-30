@@ -45,6 +45,7 @@ import app.dayweave.ui.motion.PetalBurst
 import app.dayweave.ui.motion.Petals
 import app.dayweave.ui.motion.springImpulse
 import app.dayweave.ui.theme.Ink
+import app.dayweave.core.tr
 
 /**
  * 记录按钮，像一个快拍头像：
@@ -91,7 +92,8 @@ fun CaptureOrb(
 
     Box(modifier.size(size * 1.45f), contentAlignment = Alignment.Center) {
         // 开启时花瓣绽开，关闭时落花
-        PetalBurst(running, if (running) Petals.BLOOM else Petals.FALL, Modifier.size(size), count = if (running) 16 else 10)
+        // 开始：花开（朝）；结束：花瓣落进掌心（夕拾）
+        PetalBurst(running, if (running) Petals.BLOOM else Petals.GATHER, Modifier.size(size), count = if (running) 16 else 9, durationMs = if (running) 1_200 else 1_700)
         // 涟漪
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = rippleAlpha }) {
             val base = size.toPx() / 2
@@ -140,7 +142,7 @@ fun CaptureOrb(
             ) { on ->
                 Icon(
                     if (on) Icons.Outlined.GraphicEq else Icons.Outlined.MicNone,
-                    contentDescription = if (on) "停止记录" else "开始记录",
+                    contentDescription = if (on) tr("停止记录", "Stop recording") else tr("开始记录", "Start recording"),
                     tint = if (on) Ink.OnPrimary else Ink.Primary,
                     modifier = Modifier.size(size * 0.26f),
                 )

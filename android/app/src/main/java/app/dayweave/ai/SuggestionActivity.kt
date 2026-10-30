@@ -11,6 +11,7 @@ import app.dayweave.MainActivity
 import app.dayweave.graph
 import java.time.Instant
 import java.time.ZoneId
+import app.dayweave.core.tr
 
 private const val EVENT_LEAD_MS = 15 * 60_000L
 
@@ -31,7 +32,7 @@ fun perform(context: Context, s: Suggestion, action: String): Boolean {
             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, s.at ?: return false)
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, s.endAt ?: (s.at + 60 * 60_000L))
             .putExtra(CalendarContract.Events.TITLE, s.title)
-            .putExtra(CalendarContract.Events.DESCRIPTION, listOf(s.why, s.quote).filter { it.isNotBlank() }.joinToString("\n") + "\n— 来自拾日")
+            .putExtra(CalendarContract.Events.DESCRIPTION, listOf(s.why, s.quote).filter { it.isNotBlank() }.joinToString("\n") + tr("\n— 来自拾日", "\n— from Dayweave"))
             .apply { s.location?.let { putExtra(CalendarContract.Events.EVENT_LOCATION, it) } }
         else -> return false
     }
@@ -51,9 +52,9 @@ class SuggestionActivity : Activity() {
             else -> if (s != null) {
                 if (perform(this, s, action)) {
                     agent.setStatus(s.id, "done")
-                    if (action == "alarm") Toast.makeText(this, "已设好闹钟", Toast.LENGTH_SHORT).show()
+                    if (action == "alarm") Toast.makeText(this, tr("已设好闹钟", "Alarm set"), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "没有找到可用的闹钟或日历应用", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, tr("没有找到可用的闹钟或日历应用", "No clock or calendar app found"), Toast.LENGTH_SHORT).show()
                 }
             }
         }

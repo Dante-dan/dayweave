@@ -12,10 +12,12 @@ data class InputSelection(val type: Int, val address: String, val name: String)
 enum class ServiceMode { CLOUD, OWN }
 
 /** 自带密钥时的整理模型。 */
-enum class AiProvider(val label: String) {
-    GEMINI("Gemini API"),
-    OPENAI("OpenAI 兼容接口"),
-    VERTEX("Vertex AI（用转写的服务账号）"),
+enum class AiProvider(private val zh: String, private val en: String) {
+    GEMINI("Gemini API", "Gemini API"),
+    OPENAI("OpenAI 兼容接口", "OpenAI-compatible"),
+    VERTEX("Vertex AI（用转写的服务账号）", "Vertex AI (same service account)");
+
+    val label get() = tr(zh, en)
 }
 
 data class AiConfig(
@@ -45,6 +47,15 @@ class Settings(context: Context) {
     /** 开始记录后自动回到桌面，之后在通知栏或快捷开关里控制。 */
     val autoBackground: StateFlow<Boolean> = _autoBackground
 
+    private val _standby = MutableStateFlow(prefs.getBoolean("standby_notification", true))
+    /** 没在记录时，在通知栏留一个“开始”按钮。 */
+    val standby: StateFlow<Boolean> = _standby
+
+    fun setStandby(enabled: Boolean) {
+        prefs.edit().putBoolean("standby_notification", enabled).apply()
+        _standby.value = enabled
+    }
+
     private val _theme = MutableStateFlow(
         prefs.getString("theme", null)?.let { runCatching { app.dayweave.ui.theme.ThemeMode.valueOf(it) }.getOrNull() }
             ?: app.dayweave.ui.theme.ThemeMode.SYSTEM,
@@ -55,6 +66,18 @@ class Settings(context: Context) {
     fun setTheme(mode: app.dayweave.ui.theme.ThemeMode) {
         prefs.edit().putString("theme", mode.name).apply()
         _theme.value = mode
+    }
+
+    private val _language = MutableStateFlow(
+        prefs.getString("language", null)?.let { runCatching { Language.valueOf(it) }.getOrNull() } ?: Language.SYSTEM,
+    )
+    /** 界面语言。也决定 AI 整理和提醒用什么语言写。 */
+    val language: StateFlow<Language> = _language
+
+    fun setLanguage(language: Language) {
+        prefs.edit().putString("language", language.name).apply()
+        _language.value = language
+        Lang.english = Lang.resolve(language)
     }
 
     private val _mode = MutableStateFlow(

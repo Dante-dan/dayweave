@@ -71,6 +71,7 @@ import app.dayweave.ui.components.pressable
 import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
 import app.dayweave.ui.theme.Type
+import app.dayweave.core.tr
 
 /** 录过的声音按时间排列：每天一组，片段挂在一条竖向时间轴上。 */
 @Composable
@@ -98,8 +99,8 @@ fun TimelineScreen(nav: Navigator) {
     LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(bottom = TabBarClearance)) {
         item("title") {
             Column(Modifier.padding(start = 20.dp, top = 14.dp, bottom = 14.dp)) {
-                Text("时间线", style = Type.Display)
-                Text("录下的每一段声音，和它说了什么", style = Type.Caption, modifier = Modifier.padding(top = 4.dp))
+                Text(tr("时间线", "Timeline"), style = Type.Display)
+                Text(tr("录下的每一段声音，和它说了什么", "Every moment recorded, and what was said"), style = Type.Caption, modifier = Modifier.padding(top = 4.dp))
             }
         }
         val faces = people.values.filter { p -> p.isOwner || segments.any { s -> p.id in s.speakerIds } }
@@ -110,7 +111,7 @@ fun TimelineScreen(nav: Navigator) {
         if (days.isEmpty()) {
             item("empty") {
                 Text(
-                    if (query.isBlank()) "还没有录音" else "没有找到“$query”",
+                    if (query.isBlank()) tr("还没有录音", "Nothing recorded yet") else tr("没有找到“$query”", "Nothing found for “$query”"),
                     style = Type.Caption, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 60.dp),
                 )
@@ -122,7 +123,7 @@ fun TimelineScreen(nav: Navigator) {
                 Row(Modifier.animateItem().padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
                     Text(dayLabel(date), style = Type.Title)
                     Spacer(Modifier.width(8.dp))
-                    Text("${talks.size} 段 · ${app.dayweave.ui.components.minutes(talks.sumOf { it.durationMs })}", style = Type.Caption)
+                    Text(tr("${talks.size} 段 · ${app.dayweave.ui.components.minutes(talks.sumOf { it.durationMs })}", "${talks.size} · ${app.dayweave.ui.components.minutes(talks.sumOf { it.durationMs })}"), style = Type.Caption)
                 }
             }
             itemsIndexed(list, key = { _, e -> e.key }) { i, entry ->
@@ -207,7 +208,7 @@ private fun ListeningRow(l: Listening) {
             )
             Text(
                 listOfNotNull(l.scene.title, "${clock(l.startedAt)}–${clock(l.endedAt)}", minutes(l.durationMs),
-                    if (l.scene.kind == SceneKind.CALL) "只记录你这一侧" else "未录制").joinToString(" · "),
+                    if (l.scene.kind == SceneKind.CALL) tr("只记录你这一侧", "your side only") else tr("未录制", "not recorded")).joinToString(" · "),
                 style = Type.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
@@ -224,7 +225,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
         Icon(Icons.Outlined.Search, null, tint = Ink.Secondary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) Text("搜索说过的话或说话人", style = Type.Body.copy(color = Ink.Tertiary))
+            if (query.isEmpty()) Text(tr("搜索说过的话或说话人", "Search what was said, or who"), style = Type.Body.copy(color = Ink.Tertiary))
             BasicTextField(
                 query, onChange, singleLine = true,
                 textStyle = Type.Body.copy(color = Ink.Primary),
@@ -233,7 +234,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             )
         }
         AnimatedVisibility(query.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
-            Icon(Icons.Outlined.Close, "清除", tint = Ink.Secondary, modifier = Modifier.size(18.dp).pressable({ onChange("") }))
+            Icon(Icons.Outlined.Close, tr("清除", "Clear"), tint = Ink.Secondary, modifier = Modifier.size(18.dp).pressable({ onChange("") }))
         }
     }
 }

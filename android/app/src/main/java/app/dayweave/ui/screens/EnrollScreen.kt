@@ -78,11 +78,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import app.dayweave.core.tr
 
 private data class Prompt(val lang: String, val text: String)
 
 /** 一些温柔的句子：中文、英文、中英混说各有覆盖，让声纹不偏向某一种语言，读起来也是一种小小的享受。 */
-private val PROMPTS = listOf(
+private val PROMPTS_ZH = listOf(
     Prompt("中文", "我想把日子过成一首慢慢写的诗，不急着押韵，只认真写好每一行。"),
     Prompt("English", "Every morning is a quiet invitation to begin again, a little braver than yesterday."),
     Prompt("中文", "小时候外婆常说，路是走出来的，不是想出来的。后来我才慢慢懂了。"),
@@ -90,6 +91,18 @@ private val PROMPTS = listOf(
     Prompt("中英", "那天在海边，我对自己说 just keep going，风会把答案带过来。"),
     Prompt("中文", "愿你走过的每一段路都有光，遇见的每一个人都温柔。"),
 )
+
+/** 英文界面的用户读英文短句；声纹和语言无关，读自己最常说的语言效果最好。 */
+private val PROMPTS_EN = listOf(
+    Prompt("1", "Every morning is a quiet invitation to begin again, a little braver than yesterday."),
+    Prompt("2", "I want to live my days like a slow poem, not rushing the rhyme, just writing each line with care."),
+    Prompt("3", "The stars never rush, and yet they always arrive exactly where they need to be."),
+    Prompt("4", "My grandmother used to say the road is made by walking, not by thinking about it."),
+    Prompt("5", "That day by the sea, I told myself to keep going, and let the wind bring the answers."),
+    Prompt("6", "May every road you walk have light, and every person you meet be kind."),
+)
+
+private val PROMPTS get() = if (app.dayweave.core.Lang.english) PROMPTS_EN else PROMPTS_ZH
 private const val MIN_CLIP_MS = 2_500L
 private const val MAX_CLIP_MS = 15_000L
 
@@ -125,7 +138,7 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
         val pcm = recorder.stop()
         recording = false
         if (pcm.size < SAMPLE_RATE * MIN_CLIP_MS / 1000) {
-            hint = "再读完整一点"
+            hint = tr("再读完整一点", "Read a little more of it")
             return
         }
         hint = null
@@ -163,14 +176,14 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 when (phase) {
-                    Phase.INTRO -> "声纹录入"
+                    Phase.INTRO -> tr("声纹录入", "Your voice")
                     Phase.READING -> "${index + 1} / ${PROMPTS.size}"
-                    else -> "声纹录入"
+                    else -> tr("声纹录入", "Your voice")
                 },
                 style = Type.Headline,
                 modifier = Modifier.weight(1f),
             )
-            Icon(Icons.Outlined.Close, "关闭", modifier = Modifier.size(28.dp).pressable(nav.back, scaleTo = 0.8f))
+            Icon(Icons.Outlined.Close, tr("关闭", "Close"), modifier = Modifier.size(28.dp).pressable(nav.back, scaleTo = 0.8f))
         }
 
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -189,9 +202,9 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
                 when (p) {
                     Phase.INTRO -> Intro(captureRunning)
                     Phase.READING -> PromptCard(PROMPTS[i])
-                    Phase.SAVING -> Centered("正在生成声纹…", "在手机上完成，不会上传")
+                    Phase.SAVING -> Centered(tr("正在生成声纹…", "Creating your voiceprint…"), tr("在手机上完成，不会上传", "Done on this phone, never uploaded"))
                     Phase.DONE -> Done()
-                    Phase.FAILED -> Centered("没能生成声纹", "录音太短或太安静，请换个安静的地方再试")
+                    Phase.FAILED -> Centered(tr("没能生成声纹", "Couldn't create a voiceprint"), tr("录音太短或太安静，请换个安静的地方再试", "The recording was too short or too quiet. Try again somewhere calm"))
                 }
             }
         }
@@ -202,7 +215,7 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
 
         Box(Modifier.fillMaxWidth().padding(bottom = 28.dp), contentAlignment = Alignment.Center) {
             when (phase) {
-                Phase.INTRO -> PrimaryButton(if (captureRunning) "先停止记录再录入" else "开始", enabled = !captureRunning) {
+                Phase.INTRO -> PrimaryButton(if (captureRunning) tr("先停止记录再录入", "Stop recording first") else tr("开始", "Start"), enabled = !captureRunning) {
                     actions.requestMicPermission { phase = Phase.READING }
                 }
                 Phase.READING -> RecordButton(recording, elapsed, level) {
@@ -217,8 +230,8 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
                     }
                 }
                 Phase.SAVING -> Unit
-                Phase.DONE -> PrimaryButton("完成") { nav.back() }
-                Phase.FAILED -> PrimaryButton("重新开始") {
+                Phase.DONE -> PrimaryButton(tr("完成", "Done")) { nav.back() }
+                Phase.FAILED -> PrimaryButton(tr("重新开始", "Start over")) {
                     clips.clear()
                     index = 0
                     phase = Phase.READING
@@ -235,11 +248,11 @@ private fun Intro(captureRunning: Boolean) {
             Icon(Icons.Outlined.MicNone, null, tint = Color.White, modifier = Modifier.size(44.dp))
         }
         Spacer(Modifier.height(28.dp))
-        Text("让拾日认出你", style = Type.Display, textAlign = TextAlign.Center)
+        Text(tr("让拾日认出你", "Let Dayweave know you"), style = Type.Display, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         Text(
-            "接下来是 6 段温柔的短句，有中文也有英文。\n按下按钮，用平常说话的语气读出来，读完再按一次。" +
-                if (captureRunning) "\n\n录入时需要先暂停记录。" else "",
+            tr("接下来是 6 段温柔的短句，有中文也有英文。\n按下按钮，用平常说话的语气读出来，读完再按一次。", "Next come 6 gentle lines.\nTap the button, read each one in your usual voice, then tap again.") +
+                if (captureRunning) tr("\n\n录入时需要先暂停记录。", "\n\nRecording needs to be stopped first.") else "",
             style = Type.Body.copy(color = Ink.Secondary),
             textAlign = TextAlign.Center,
         )
@@ -280,8 +293,8 @@ private fun Done() {
         ) { Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(52.dp)) }
         }
         Spacer(Modifier.height(24.dp))
-        Text("声纹已录入", style = Type.Display)
-        Text("之后的对话里，你会出现在右侧", style = Type.Caption, modifier = Modifier.padding(top = 8.dp))
+        Text(tr("声纹已录入", "Voice saved"), style = Type.Display)
+        Text(tr("之后的对话里，你会出现在右侧", "From now on, you'll appear on the right"), style = Type.Caption, modifier = Modifier.padding(top = 8.dp))
     }
 }
 
@@ -328,9 +341,9 @@ private fun RecordButton(recording: Boolean, elapsed: Long, level: Double, onCli
                     .background(if (recording) Ink.Live else Ink.Primary),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (recording) Icons.Outlined.Stop else Icons.Outlined.MicNone, if (recording) "读完了" else "开始朗读", tint = if (recording) Color.White else Ink.OnPrimary, modifier = Modifier.size(32.dp))
+                Icon(if (recording) Icons.Outlined.Stop else Icons.Outlined.MicNone, if (recording) tr("读完了", "Done reading") else tr("开始朗读", "Start reading"), tint = if (recording) Color.White else Ink.OnPrimary, modifier = Modifier.size(32.dp))
             }
         }
-        Text(if (recording) "读完后轻触" else "轻触开始朗读", style = Type.Caption, modifier = Modifier.padding(top = 12.dp))
+        Text(if (recording) tr("读完后轻触", "Tap when you're done") else tr("轻触开始朗读", "Tap to start reading"), style = Type.Caption, modifier = Modifier.padding(top = 12.dp))
     }
 }

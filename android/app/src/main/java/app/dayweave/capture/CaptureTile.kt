@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.dayweave.MainActivity
+import app.dayweave.core.tr
 
 /**
  * 控制中心里的“拾日”快捷开关：随时开始、暂停或继续，不用打开 App。
@@ -20,9 +21,9 @@ class CaptureTile : TileService() {
         qsTile?.apply {
             state = if (s.listening) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
             subtitle = when {
-                !s.running -> "未记录"
-                s.paused -> "已暂停"
-                else -> "聆听中"
+                !s.running -> tr("未记录", "Off")
+                s.paused -> tr("已暂停", "Paused")
+                else -> tr("聆听中", "Listening")
             }
             updateTile()
         }

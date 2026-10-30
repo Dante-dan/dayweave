@@ -34,6 +34,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import app.dayweave.core.tr
 
 /** 拾日主动提出的一件事：时间、来由、原话，一键交给闹钟或日历。 */
 @Composable
@@ -73,13 +74,13 @@ fun SuggestionCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (s.at != null) {
-                Chip(Icons.Outlined.Alarm, if (s.kind == "event") "提前 15 分钟" else "设闹钟", dark = s.kind == "alarm") { onAction("alarm") }
-                Chip(Icons.Outlined.Event, "加到日程", dark = s.kind == "event") { onAction("event") }
+                Chip(Icons.Outlined.Alarm, if (s.kind == "event") tr("提前 15 分钟", "15 min early") else tr("设闹钟", "Set alarm"), dark = s.kind == "alarm") { onAction("alarm") }
+                Chip(Icons.Outlined.Event, tr("加到日程", "Add to calendar"), dark = s.kind == "event") { onAction("event") }
             } else {
-                Chip(Icons.Outlined.CheckCircleOutline, "记下了", dark = true) { onAction("done") }
+                Chip(Icons.Outlined.CheckCircleOutline, tr("记下了", "Got it"), dark = true) { onAction("done") }
             }
             Spacer(Modifier.weight(1f))
-            Text("忽略", style = Type.Caption, modifier = Modifier.pressable({ onAction("dismiss") }).padding(8.dp))
+            Text(tr("忽略", "Dismiss"), style = Type.Caption, modifier = Modifier.pressable({ onAction("dismiss") }).padding(8.dp))
         }
     }
 }
@@ -99,5 +100,5 @@ private fun Chip(icon: ImageVector, text: String, dark: Boolean, onClick: () -> 
 
 private fun when_(ms: Long): String {
     val t = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
-    return "${dayLabel(t.toLocalDate())} ${t.format(DateTimeFormatter.ofPattern("HH:mm", Locale.CHINA))}"
+    return "${dayLabel(t.toLocalDate())} ${t.format(DateTimeFormatter.ofPattern("HH:mm"))}"
 }

@@ -85,6 +85,9 @@ class DayweaveApp : Application() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
+        app.dayweave.core.Lang.english = app.dayweave.core.Lang.resolve(graph.settings.language.value)
+        graph.voice.relabel()
+        app.dayweave.capture.showStandby(this)
     }
 }
 

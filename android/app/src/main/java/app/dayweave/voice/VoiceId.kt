@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.math.sqrt
+import app.dayweave.core.tr
 
 /** 与主人声纹的余弦相似度达到该值即认为是主人。CAM++ 同一说话人通常在 0.6 以上，不同人多在 0.3 以下。 */
 const val OWNER_THRESHOLD = 0.5f
@@ -80,8 +81,17 @@ class VoiceId(private val context: Context, root: File) {
     }.getOrDefault(emptyList())
 
     private fun snapshot(): Map<String, Person> =
-        mapOf(OWNER_ID to Person(OWNER_ID, "我", 0, isOwner = true)) +
-            known.associate { it.id to Person(it.id, it.name, it.colorIndex, named = it.named) }
+        mapOf(OWNER_ID to Person(OWNER_ID, tr("我", "Me"), 0, isOwner = true)) +
+            known.associate { p ->
+                // 没起名字的人只存编号，名字按当前语言显示（说话人 3 / Speaker 3）
+                val name = if (p.named) p.name else p.id.removePrefix("p").let { n -> tr("说话人 $n", "Speaker $n") }
+                p.id to Person(p.id, name, p.colorIndex, named = p.named)
+            }
+
+    /** 切换语言后重新生成显示名。 */
+    fun relabel() {
+        _people.value = snapshot()
+    }
 
     /** 提取一段音频的归一化声纹；音频太短时循环拼接。 */
     @Synchronized

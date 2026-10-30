@@ -16,6 +16,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import app.dayweave.core.tr
 
 /** Chirp 3 识别出的一个词，时间相对请求音频开头。 */
 data class Word(val startMs: Long, val endMs: Long, val text: String, val label: String)
@@ -31,7 +32,7 @@ interface SpeechEngine {
 
 /** 自带密钥：用户自己的 Google Cloud 服务账号直连 Speech-to-Text v2 Chirp 3。中英双语、说话人分段、词级时间戳。 */
 class ChirpClient(private val auth: GoogleAuth) : SpeechEngine {
-    override val problem get() = if (auth.available) null else "还没有导入 Google Cloud 服务账号"
+    override val problem get() = if (auth.available) null else tr("还没有导入 Google Cloud 服务账号", "No Google Cloud service account yet")
 
     override fun recognize(pcm: ShortArray, from: Int, to: Int): Recognition {
         val endpoint = "https://us-speech.googleapis.com/v2/projects/${auth.projectId}/locations/us/recognizers/_:recognize"

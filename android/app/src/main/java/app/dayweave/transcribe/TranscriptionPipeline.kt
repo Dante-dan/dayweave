@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import app.dayweave.core.tr
 
 private const val TAG = "Dayweave"
 private const val CHUNK_MAX = SAMPLE_RATE * 55 // 同步识别单次上限 60 秒，留余量
@@ -71,7 +72,7 @@ class TranscriptionPipeline(
         val segment = archive.get(id) ?: return
         val file = audioFile(id)
         if (!file.exists()) {
-            archive.save(segment.copy(status = SegmentStatus.FAILED, error = "临时音频已不存在，无法转写"))
+            archive.save(segment.copy(status = SegmentStatus.FAILED, error = tr("临时音频已不存在，无法转写", "The temporary audio is gone, so it can't be transcribed")))
             return
         }
         val speech = engine()
@@ -114,7 +115,7 @@ class TranscriptionPipeline(
             file.delete()
         } catch (e: IOException) {
             Log.w(TAG, "transcribe $id offline, retry later", e)
-            archive.save(segment.copy(status = SegmentStatus.PENDING, error = "网络不可用，稍后重试"))
+            archive.save(segment.copy(status = SegmentStatus.PENDING, error = tr("网络不可用，稍后重试", "No network. Will retry later")))
             scope.launch {
                 delay(60_000)
                 queue.send(id)
@@ -122,9 +123,9 @@ class TranscriptionPipeline(
         } catch (e: HttpException) {
             Log.e(TAG, "transcribe $id failed", e)
             val message = when (e.code) {
-                402 -> "拾日云余额不足，充值后点重试"
-                401, 403 -> "转写服务拒绝了请求，请检查密钥或权限"
-                else -> "转写失败（${e.code}）"
+                402 -> tr("拾日云余额不足，充值后点重试", "Dayweave Cloud balance is too low. Top up, then tap Retry")
+                401, 403 -> tr("转写服务拒绝了请求，请检查密钥或权限", "The transcription service refused the request. Check the key or permissions")
+                else -> tr("转写失败（${e.code}）", "Transcription failed (${e.code})")
             }
             archive.save(segment.copy(status = SegmentStatus.FAILED, error = message))
         } catch (e: Exception) {

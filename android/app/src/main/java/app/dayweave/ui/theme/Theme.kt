@@ -105,7 +105,11 @@ object Type {
 }
 
 /** 外观：跟随系统、浅色（朝）、深色（夕）。 */
-enum class ThemeMode(val label: String) { SYSTEM("跟随系统"), LIGHT("朝 · 浅色"), DARK("夕 · 深色") }
+enum class ThemeMode(private val zh: String, private val en: String) {
+    SYSTEM("跟随系统", "System"), LIGHT("朝 · 浅色", "Dawn · Light"), DARK("夕 · 深色", "Dusk · Dark");
+
+    val label get() = app.dayweave.core.tr(zh, en)
+}
 
 @Composable
 fun DayweaveTheme(dark: Boolean, content: @Composable () -> Unit) {
