@@ -57,7 +57,9 @@ const routes = {
   'GET /v1/pricing': () => ({ ...pricing, priceMicrosPerMinute: pricing.priceMicrosPerMinute }),
 
   'POST /v1/accounts': (req) => {
-    if (!allowSignup(req.socket.remoteAddress)) throw new HttpError(429, 'too many accounts')
+    // 经 Cloudflare Tunnel 进来时，真实来源在 CF-Connecting-IP；服务只监听本机，这个头不会被外部伪造。
+    const ip = req.headers['cf-connecting-ip'] || req.socket.remoteAddress
+    if (!allowSignup(ip)) throw new HttpError(429, 'too many accounts')
     return createAccount(TRIAL_MINUTES * pricing.priceMicrosPerMinute)
   },
 

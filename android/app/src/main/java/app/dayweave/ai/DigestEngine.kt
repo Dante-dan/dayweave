@@ -68,7 +68,7 @@ private const val SYSTEM = """你是“拾日”的私人秘书。输入是用�
    - 片段标注了“听音乐时”等场景，说明是用户在听东西时有人说话。按内容写清楚是谁、说了什么、要不要留意，例如：
      “听音乐时，说话人 1 来找你，约了 18:00 楼下见，别忘了带伞。”“听播客时你随口提到想学摄影。”
    - 有人找用户、又和时间或约定有关时，放进 followUps，并在 text 里写明时间。
-   - 通话或开会时只录到了用户这一侧的声音，不要假装知道对方说了什么。
+   - 麦克风在通话或开会时只录到用户这一侧，不要假装知道对方说了什么；来源是“通话录音”的片段双方都有。
    - 单纯的听音乐、看视频不必写成经历，除非和当天的对话有关；可以在 summary 里轻轻带过。
 8. 用简体中文输出，英文术语、人名、产品名保留原文。没有值得写的内容就少写，不要凑数。
 headline 不超过 18 个字，像一个好的日记标题；summary 2-4 句。"""
@@ -210,7 +210,11 @@ class DigestEngine(
                 append("\n")
             }
             for (s in sources) {
-                val origin = if (s.source == SourceKind.PLAYBACK) "播放声音" else "麦克风·${s.device}"
+                val origin = when (s.source) {
+                    SourceKind.PLAYBACK -> "播放声音"
+                    SourceKind.CALL -> "通话录音，双方的声音都有"
+                    SourceKind.MIC -> "麦克风·${s.device}"
+                }
                 val scene = s.scene?.let { "，${it.kind.doing}" + listOfNotNull(it.app, it.title).joinToString(" ").let { d -> if (d.isBlank()) "" else "（$d）" } }.orEmpty()
                 append("## 片段 ${s.id}（${at(s.startedAt)}–${at(s.endedAt)}，$origin$scene）\n")
                 for (t in s.turns) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")

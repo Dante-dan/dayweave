@@ -184,7 +184,9 @@ class Agent(
             append("当前时间：${fmt.format(Instant.now())}\n")
             append("对话时间：${fmt.format(Instant.ofEpochMilli(segment.startedAt))}\n")
             segment.scene?.let { append("场景：用户当时在${it.kind.label}${it.app?.let { a -> "（$a）" } ?: ""}") }
-            if (segment.scene?.kind == SceneKind.CALL) append("，只录到用户这一侧")
+            if (segment.scene?.kind == SceneKind.CALL) {
+                append(if (segment.source == app.dayweave.core.SourceKind.CALL) "，这是通话录音，双方都有" else "，只录到用户这一侧")
+            }
             append("\n\n")
             for (t in segment.turns) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")
         }

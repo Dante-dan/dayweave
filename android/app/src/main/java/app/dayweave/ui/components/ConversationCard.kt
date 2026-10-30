@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayCircle
@@ -37,6 +38,7 @@ import app.dayweave.ui.theme.Type
 fun SourceIcon(segment: Segment, modifier: Modifier = Modifier) {
     val icon = when {
         segment.source == SourceKind.PLAYBACK -> Icons.Rounded.PlayCircle
+        segment.source == SourceKind.CALL -> Icons.Rounded.Call
         segment.device.contains("手机") -> Icons.Rounded.Mic
         else -> Icons.Rounded.Headphones
     }

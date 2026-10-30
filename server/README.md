@@ -37,3 +37,9 @@ App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://
 | POST | `/v1/digest` | `{system, user, schema}`，返回 `{text}` |
 
 尚未接入在线支付；目前用充值码。
+
+## 线上部署（us-xl）
+
+- 地址：`https://dayweave.duanjl.com`，经 Cloudflare Tunnel `dayweave` 暴露，服务只监听 `127.0.0.1:8787`，不暴露服务器 IP。
+- 在 us-xl 上：`~/dayweave/{app,secrets,data,tunnel}`，tmux 会话 `dayweave`（窗口 `server` 跑 Docker 容器，`tunnel` 跑 cloudflared）。
+- 更新：`rsync -a --delete server/src server/package.json server/Dockerfile us-xl:dayweave/app/`，然后在 us-xl 上 `docker build -t dayweave-cloud ~/dayweave/app` 并重启 `server` 窗口。

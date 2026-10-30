@@ -7,6 +7,7 @@ import app.dayweave.ai.CloudDigest
 import app.dayweave.ai.DigestEngine
 import app.dayweave.ai.DigestModel
 import app.dayweave.ai.digestModel
+import app.dayweave.capture.CallRecordings
 import app.dayweave.capture.SpeechDetector
 import app.dayweave.cloud.CloudApi
 import app.dayweave.core.ArchiveStore
@@ -55,6 +56,13 @@ class AppGraph(context: Context) {
         audioDir = File(context.cacheDir, "segments").apply { mkdirs() },
         scope = scope,
     )
+    val callRecordings = CallRecordings(
+        context = context,
+        submit = pipeline::submit,
+        audioDir = File(context.cacheDir, "segments"),
+        scope = scope,
+    )
+
     val digest = DigestEngine(
         archive = archive,
         model = { digestModel },

@@ -66,7 +66,12 @@ fun mediaAccessGranted(context: Context) =
  * 观察手机此刻在放什么：音乐、播客、视频，还是通话 / 会议。只读系统公开的播放状态，不录制任何播放的声音。
  * 同时告诉蓝牙麦克风什么时候该让路：别的 App 一出声，就把耳机还给它。
  */
-class AudioScene(private val context: Context, private val archive: ArchiveStore) {
+class AudioScene(
+    private val context: Context,
+    private val archive: ArchiveStore,
+    /** 一个场景结束时回调，例如通话结束后去导入通话录音。 */
+    private val onEnded: (Scene) -> Unit = {},
+) {
     private val audio = context.getSystemService(AudioManager::class.java)
     private val main = Handler(Looper.getMainLooper())
 
@@ -141,6 +146,7 @@ class AudioScene(private val context: Context, private val archive: ArchiveStore
     private fun closeSpan(at: Long) {
         val s = span ?: return
         span = null
+        onEnded(s.scene)
         val closed = s.copy(endedAt = at.coerceAtLeast(s.startedAt))
         if (closed.durationMs >= MIN_SPAN_MS) archive.save(closed)
     }

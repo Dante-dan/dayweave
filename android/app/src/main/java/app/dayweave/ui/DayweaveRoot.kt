@@ -98,6 +98,8 @@ interface Actions {
     /** 选择服务账号 JSON 并导入；回调参数为错误说明，成功时为 null。 */
     fun importServiceAccount(done: (String?) -> Unit)
     fun openMediaAccess()
+    /** 选择系统通话录音文件夹，开启自动导入。 */
+    fun pickCallRecordings()
 }
 
 private sealed interface Route {

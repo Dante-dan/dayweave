@@ -6,7 +6,7 @@ import { homedir } from 'node:os'
 const file = (process.env.GOOGLE_SERVICE_ACCOUNT_FILE || '').replace(/^~/, homedir())
 const sa = JSON.parse(readFileSync(file, 'utf8'))
 export const project = sa.project_id
-export const digestModel = process.env.DIGEST_MODEL || 'gemini-2.5-flash'
+export const digestModel = process.env.DIGEST_MODEL || 'gemini-3.6-flash'
 
 let cached = { token: '', expiresAt: 0 }
 
@@ -37,13 +37,18 @@ export class UpstreamError extends Error {
   }
 }
 
-async function post(url, body) {
+async function post(url, body, attempt = 0) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(180_000),
   })
+  // 配额紧张时（429）稍等再试一次。
+  if (res.status === 429 && attempt < 2) {
+    await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)))
+    return post(url, body, attempt + 1)
+  }
   if (!res.ok) throw new UpstreamError(res.status, await res.text())
   return res.json()
 }

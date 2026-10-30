@@ -55,6 +55,25 @@ class MainActivity : ComponentActivity(), Actions {
         }
     }
 
+    /** 授权通话录音文件夹：系统文件选择器，只读这一个文件夹。 */
+    private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            graph.callRecordings.enable(uri)
+            graph.callRecordings.scan()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        graph.callRecordings.scan()
+    }
+
+    override fun pickCallRecordings() {
+        pickFolder.launch(
+            android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", app.dayweave.capture.CALL_REC_DOCUMENT),
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
@@ -84,6 +103,7 @@ class MainActivity : ComponentActivity(), Actions {
             service = intent.getBooleanExtra("service", false),
         )
         if (link != DeepLink()) deepLink.value = link
+        if (BuildConfig.DEBUG) intent.getStringExtra("importCall")?.let { graph.callRecordings.importForTest(java.io.File(cacheDir, it)) }
         if (intent.getBooleanExtra("start", false) && !CaptureService.state.value.running) toggleCapture()
     }
 

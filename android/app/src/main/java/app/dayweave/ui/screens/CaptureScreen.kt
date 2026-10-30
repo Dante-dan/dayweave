@@ -40,7 +40,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Fingerprint
@@ -80,6 +82,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Key
@@ -202,6 +205,23 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
                 else "可选。只读“正在播放”的信息，不读通知内容；不开启也能分出音乐、播客和通话",
                 trailing = { if (mediaAccess) Check() else Chevron() },
                 onClick = actions::openMediaAccess,
+            )
+        }
+
+        Group("通话") {
+            val callFolder by graph.callRecordings.folder.collectAsStateWithLifecycle()
+            val callCount by graph.callRecordings.imported.collectAsStateWithLifecycle()
+            Item(
+                icon = Icons.Rounded.Call,
+                title = "自动导入通话录音",
+                subtitle = if (callFolder != null) "已开启 · 已导入 $callCount 段 · 原录音文件不会被改动或上传"
+                else "通话时拾日听不到对方。打开系统的通话录音，再授权拾日读取录音文件夹，挂断后自动转写",
+                trailing = {
+                    GlassSwitch(callFolder != null, enabled = true) { on ->
+                        if (on) actions.pickCallRecordings() else graph.callRecordings.disable()
+                    }
+                },
+                onClick = { if (callFolder == null) actions.pickCallRecordings() },
             )
         }
 

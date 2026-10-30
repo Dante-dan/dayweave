@@ -84,6 +84,15 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     private fun auth() = mapOf("Authorization" to "Bearer ${token()}")
 
+    /** 令牌失效（例如换了服务器）时重新建一个账户再试一次。 */
+    private fun <T> authed(block: (Map<String, String>) -> T): T = try {
+        block(auth())
+    } catch (e: HttpException) {
+        if (e.code != 401) throw e
+        settings.cloudToken = null
+        block(auth())
+    }
+
     /** 刷新账户和计价，用于“服务与用量”页面。 */
     fun refresh() {
         if (base.isBlank()) return
@@ -91,7 +100,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
             if (_status.value !is CloudStatus.Ready) _status.value = CloudStatus.Loading
             runCatching {
                 _pricing.value = json.decodeFromString<CloudPricing>(getJson("$base/v1/pricing"))
-                json.decodeFromString<CloudAccount>(getJson("$base/v1/me", auth()))
+                json.decodeFromString<CloudAccount>(authed { getJson("$base/v1/me", it) })
             }.onSuccess { _status.value = CloudStatus.Ready(it) }
                 .onFailure { _status.value = CloudStatus.Failed(it.message ?: "连接失败") }
         }
@@ -99,7 +108,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     /** 兑换充值码。成功返回 null，否则返回错误说明。 */
     fun redeem(code: String): String? = try {
-        postJson("$base/v1/redeem", buildJsonObject { put("code", code.trim()) }.toString(), auth())
+        authed { postJson("$base/v1/redeem", buildJsonObject { put("code", code.trim()) }.toString(), it) }
         refresh()
         null
     } catch (e: HttpException) {
@@ -114,7 +123,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     override fun recognize(pcm: ShortArray, from: Int, to: Int): Recognition {
         val body = buildJsonObject { put("audio", pcmBase64(pcm, from, to)) }.toString()
-        val response = postJson("$base/v1/transcribe", body, auth(), readTimeoutMs = 120_000)
+        val response = authed { postJson("$base/v1/transcribe", body, it, readTimeoutMs = 120_000) }
         return parseRecognition(json.parseToJsonElement(response).jsonObject)
     }
 
@@ -124,7 +133,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
             put("user", user)
             put("schema", schema)
         }.toString()
-        return json.parseToJsonElement(postJson("$base/v1/digest", body, auth(), readTimeoutMs = 180_000))
+        return json.parseToJsonElement(authed { postJson("$base/v1/digest", body, it, readTimeoutMs = 180_000) })
             .jsonObject.getValue("text").jsonPrimitive.content
     }
 }

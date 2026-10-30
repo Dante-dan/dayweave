@@ -25,7 +25,7 @@ data class AiConfig(
     val model: String = "",
 ) {
     val defaultModel get() = when (provider) {
-        AiProvider.GEMINI, AiProvider.VERTEX -> "gemini-2.5-flash"
+        AiProvider.GEMINI, AiProvider.VERTEX -> "gemini-3.6-flash"
         AiProvider.OPENAI -> "gpt-4.1-mini"
     }
     val effectiveModel get() = model.ifBlank { defaultModel }

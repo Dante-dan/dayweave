@@ -2,9 +2,12 @@ package app.dayweave.core
 
 import kotlinx.serialization.Serializable
 
-/** 片段来自哪条输入。PLAYBACK 只出现在旧版本的档案里：现在不再录制手机播放的声音。 */
+/**
+ * 片段来自哪里：麦克风，或系统通话录音（自动导入）。
+ * PLAYBACK 只出现在旧版本的档案里：现在不再录制手机播放的声音。
+ */
 @Serializable
-enum class SourceKind { MIC, PLAYBACK }
+enum class SourceKind { MIC, PLAYBACK, CALL }
 
 /** 手机当时在放什么。只读系统公开的播放状态，不录制这些声音。 */
 @Serializable

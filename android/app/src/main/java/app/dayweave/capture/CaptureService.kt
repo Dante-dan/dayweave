@@ -79,6 +79,7 @@ class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private val main = Handler(Looper.getMainLooper())
     private var shownNotification = ""
+    private var ticks = 0
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -95,6 +96,8 @@ class CaptureService : Service() {
                 )
             }
             refreshNotification()
+            // 记录中每两分钟看一次有没有新的通话录音。
+            if (++ticks % 1500 == 0) applicationContext.graph.callRecordings.scan()
             if (_state.value.running) main.postDelayed(this, 80)
         }
     }
@@ -140,7 +143,10 @@ class CaptureService : Service() {
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dayweave:capture")
             .apply { acquire(24 * 60 * 60_000L) }
         detector = SpeechDetector(this)
-        scene = AudioScene(this, graph.archive).also { it.start() }
+        scene = AudioScene(this, graph.archive) { ended ->
+            // 通话结束后，系统录音一般几秒内写完，稍等再导入。
+            if (ended.kind == app.dayweave.core.SceneKind.CALL) main.postDelayed({ graph.callRecordings.scan() }, 30_000)
+        }.also { it.start() }
         _state.value = CaptureState(running = true, startedAt = System.currentTimeMillis(), micName = selection.name)
         startMic()
         main.post(ticker)
