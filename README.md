@@ -8,7 +8,7 @@ Dayweave 是一套尽量无需操作的个人秘书系统：通过随身设备�
 
 音频是处理过程中的临时材料。文字是长期留下的记忆。
 
-> **当前状态：产品定义阶段。** 本仓库目前包含产品文档，尚无可安装 App、运行中的后端或已验证的设备适配。下文描述的是计划行为。
+> **当前状态：demo 阶段。** `android/` 是可以安装的安卓 demo，已经在小米 13 Ultra + REDMI Buds 8 上跑通“采集 → 分段 → Chirp 3 转写 → 手机端声纹归属 → 文字档案”的完整流程；AI 每日整理已接入 Gemini，需要在 Google Cloud 开通 Vertex AI。手环接入尚未实现。设备调查结论见 `docs/research/`。
 
 ## 为什么做这个项目
 
@@ -106,4 +106,16 @@ docs/PRODUCT.md                 产品定位、意图、原则与验收方向
 docs/research/device-capture.md 耳机、手环、手机收音链路调查记录
 docs/research/asr-candidates.md ASR 候选初筛
 spikes/audio-probe/             一次性持续采集探针（Android），用于设备真机验证
+spikes/asr-eval/                Google Speech-to-Text 转写评估脚本
+android/                        拾日 demo App（Kotlin + Jetpack Compose）
 ```
+
+## 运行 demo
+
+```bash
+android/scripts/fetch-deps.sh                 # 下载 sherpa-onnx 推理库和 CAM++ 声纹模型（不进仓库）
+cd android && ./gradlew :app:installDebug
+android/scripts/push-credentials.sh           # 把 .env 里的 Google 服务账号凭证放进 App 私有目录
+```
+
+服务账号需要 `Cloud Speech 客户端` 角色用于转写；AI 每日整理还需要在项目中启用 Vertex AI API，并授予 `Vertex AI 用户` 角色。
