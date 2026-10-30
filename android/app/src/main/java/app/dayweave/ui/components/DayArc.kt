@@ -138,24 +138,35 @@ fun DayArc(today: List<Segment>, onOpen: (String) -> Unit, modifier: Modifier = 
             val glow = 13.dp.toPx() * (1 + 0.12f * sin(TAU * pulse))
             drawCircle(Brush.radialGradient(listOf(Hue.Gold.copy(alpha = 0.4f * progress), Color.Transparent), center = sun, radius = glow), glow, sun)
             drawCircle(Color.White.copy(alpha = 0.95f * progress), 3.2.dp.toPx() * progress, sun)
-            // 今天说过的话：一天按半小时分格，有录音的时段从弧上斜落一道光。所有光线平行、等距，
-            // 长度 L = L₀ + L₁·√(m / m_max)、不透明度随 m 增加（m 是这半小时里的录音分钟数），只表示疏密，不逐段画。
-            // 入场时光线从弧上长出来：长度乘以弹簧阶跃 springStep，收尾略有回弹。
+            // 今天说过的话：一天按半小时分格，有录音的时段在弧上落一道光影，像阳光下的树影随太阳移动：
+            // 方向 θ = (0.5 − t)·130°（从正下方量起）：早晨偏向右（太阳在左，影子朝右），正午垂直，傍晚偏向左；
+            // 长度 L ∝ 1 / (0.3 + sin πt)：太阳低时影子长，正午最短；再乘以这个时段的录音疏密 √(m / m_max)。
+            // 每道由一条亮线和一条贴着它的淡影组成（斑驳的树影），清晨傍晚偏暖、正午偏清。
             val maxMinutes = bins.maxOfOrNull { it.minutes } ?: 1f
-            val dir = Offset(-0.42f, 1f).let { it / it.getDistance() } // 斜向左下，像斜照的日光
+            val shade = if (app.dayweave.ui.theme.Palette.dark) Color.Black else Color(0xFF3A2A40)
             for (bin in bins) {
                 val a = appear[bin.key]?.value ?: continue
                 if (a <= 0f) continue
                 val t = bin.t
                 val p = point(t, w, h)
-                val density = kotlin.math.sqrt(bin.minutes / maxMinutes).coerceIn(0.15f, 1f)
-                val grow = springStep(a, response = 0.5f, damping = 0.7f).coerceAtLeast(0f)
-                val len = (5.dp.toPx() + 15.dp.toPx() * density) * grow
-                val start = p + dir * 3.dp.toPx()
-                val color = if (bin.call) Hue.Mint else skyAt(t)
+                val elevation = sin(PI.toFloat() * t)
+                val theta = (0.5f - t) * 130f * PI.toFloat() / 180f
+                val dir = Offset(sin(theta), cos(theta))
+                val density = kotlin.math.sqrt(bin.minutes / maxMinutes).coerceIn(0.2f, 1f)
+                val grow = springStep(a, response = 0.5f, damping = 0.75f).coerceAtLeast(0f)
+                val len = (6.dp.toPx() / (0.3f + elevation)).coerceAtMost(20.dp.toPx()) * (0.55f + 0.45f * density) * grow
+                val start = p + dir * 2.5.dp.toPx()
+                val end = start + dir * len
+                val warmth = 1f - elevation // 太阳越低，光越暖
+                val light = androidx.compose.ui.graphics.lerp(if (bin.call) Hue.Mint else skyAt(t), Hue.Gold, 0.35f * warmth)
+                val side = Offset(-dir.y, dir.x) * 1.4.dp.toPx() // 影子贴在光的一侧
                 drawLine(
-                    Brush.linearGradient(listOf(color.copy(alpha = 0.35f + 0.6f * density), color.copy(alpha = 0f)), start, start + dir * len),
-                    start, start + dir * len, 1.8.dp.toPx(), StrokeCap.Round,
+                    Brush.linearGradient(listOf(shade.copy(alpha = 0.10f + 0.10f * density), Color.Transparent), start + side, end + side),
+                    start + side, end + side, 1.2.dp.toPx(), StrokeCap.Round,
+                )
+                drawLine(
+                    Brush.linearGradient(listOf(light.copy(alpha = 0.45f + 0.5f * density), light.copy(alpha = 0f)), start, end),
+                    start, end, 0.9.dp.toPx(), StrokeCap.Round,
                 )
             }
         }

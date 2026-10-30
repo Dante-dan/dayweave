@@ -40,6 +40,17 @@ App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://
 
 ## 线上部署（us-xl）
 
-- 地址：`https://dayweave.duanjl.com`，经 Cloudflare Tunnel `dayweave` 暴露，服务只监听 `127.0.0.1:8787`，不暴露服务器 IP。
-- 在 us-xl 上：`~/dayweave/{app,secrets,data,tunnel}`，tmux 会话 `dayweave`（窗口 `server` 跑 Docker 容器，`tunnel` 跑 cloudflared）。
-- 更新：`rsync -a --delete server/src server/package.json server/Dockerfile us-xl:dayweave/app/`，然后在 us-xl 上 `docker build -t dayweave-cloud ~/dayweave/app` 并重启 `server` 窗口。
+- 地址：`https://dayweave.duanjl.com`，经独立的 Cloudflare Tunnel `dayweave` 暴露；服务只监听 `127.0.0.1:8787`，不暴露服务器 IP。
+- 目录：`~/dayweave/{app,secrets,data,tunnel}` 和 `~/dayweave/.env`（权限 600，服务账号路径为容器内的 `/secrets/google-sa.json`）。
+- 开机自启：
+  - 服务：Docker 容器 `dayweave-cloud`，重启策略 `unless-stopped`，随 Docker 启动。
+  - 隧道：systemd 服务 `dayweave-tunnel`（`/etc/systemd/system/dayweave-tunnel.service`），与机器上原有的 `cloudflared` 服务互不影响。
+- 更新代码：
+
+  ```bash
+  rsync -a --delete server/src server/package.json server/Dockerfile us-xl:dayweave/app/
+  ssh us-xl 'cd ~/dayweave/app && docker build -t dayweave-cloud . && docker rm -f dayweave-cloud && \
+    docker run -d --name dayweave-cloud --restart unless-stopped -p 127.0.0.1:8787:8787 \
+      -v /root/dayweave/data:/app/data -v /root/dayweave/secrets:/secrets:ro --env-file /root/dayweave/.env dayweave-cloud'
+  ```
+- 日志：`docker logs -f dayweave-cloud`、`journalctl -u dayweave-tunnel -f`。
