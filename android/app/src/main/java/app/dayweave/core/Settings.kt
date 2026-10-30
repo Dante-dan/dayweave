@@ -96,10 +96,10 @@ class Settings(context: Context) {
     )
     val ai: StateFlow<AiConfig> = _ai
 
-    /** 拾日云的账户令牌，首次使用时自动创建。 */
-    var cloudToken: String?
-        get() = prefs.getString("cloud_token", null)
-        set(value) = prefs.edit().putString("cloud_token", value).apply()
+    /** 拾日云授权码：凭证本身，只存在本机。 */
+    var licenseCode: String?
+        get() = prefs.getString("license_code", null)
+        set(value) = prefs.edit().putString("license_code", value).remove("cloud_token").apply()
 
     private fun readInput(): InputSelection? {
         val name = prefs.getString("input_name", null) ?: return null

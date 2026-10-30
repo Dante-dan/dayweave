@@ -19,7 +19,7 @@
 
 | 候选 | 中文（中英混说待测） | 说话人分段 | 留存 | 公开价格线索 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| **Google Cloud Speech-to-Text**（项目 `gen-lang-client-0050324770`） | v1 `latest_long` 不满足要求；**v2 Chirp 3 中英混说表现良好**（见下） | 待测 | 待核实 | 待查 | **用户指定的首选**。v2 不接受 API 密钥，需要服务账号（`roles/speech.client`） |
+| **Google Cloud Speech-to-Text**（个人 GCP 项目） | v1 `latest_long` 不满足要求；**v2 Chirp 3 中英混说表现良好**（见下） | 待测 | 待核实 | 待查 | **用户指定的首选**。v2 不接受 API 密钥，需要服务账号（`roles/speech.client`） |
 | 阿里云百炼 `qwen-audio-3.1-asr-flash-filetrans` | 强，中文是主场 | 支持 | 待核实 | 社区称批处理约 ¥0.10/小时（非官方） | 支持热词和 Prompt 上下文；单文件最长 12 小时 |
 | 阿里云百炼 `fun-asr` / `paraformer-8k-v2` | 强 | 支持 | 待核实 | 待查 | `paraformer-8k-v2` 面向 8 kHz 电话音频，可能适合 SCO 窄带 |
 | ElevenLabs Scribe v2 | 普通话可用，但不在错误率最低的一档 | 支持 | 有零留存模式（可能需要企业方案） | 约 $0.22/小时 | 境外服务 |

@@ -161,7 +161,7 @@ class DigestEngine(
         }
         setState(date, DigestState.Generating)
         try {
-            val text = ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, transcript(date, sources), SCHEMA)
+            val text = ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, transcript(date, sources), SCHEMA, task = "digest")
             val digest = json.decodeFromString<DayDigest>(withDate(text, date)).copy(
                 date = date.toString(),
                 sourceIds = sources.map { it.id },
@@ -175,7 +175,7 @@ class DigestEngine(
             Log.w("Dayweave", "digest $date failed", e)
             val setup = e.code == 403 || e.code == 401
             val message = when {
-                e.code == 402 -> tr("拾日云余额不足", "Dayweave Cloud balance is too low")
+                e.code == 402 -> tr("授权码额度已用完", "License code used up")
                 setup -> tr("整理服务拒绝了请求，请检查密钥或权限", "The AI service refused the request. Check the key or permissions")
                 e.code >= 500 -> tr("整理服务暂时不可用", "The AI service is unavailable right now")
                 else -> tr("整理失败（${e.code}）", "Couldn't write the digest (${e.code})")

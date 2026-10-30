@@ -123,7 +123,7 @@ class TranscriptionPipeline(
         } catch (e: HttpException) {
             Log.e(TAG, "transcribe $id failed", e)
             val message = when (e.code) {
-                402 -> tr("拾日云余额不足，充值后点重试", "Dayweave Cloud balance is too low. Top up, then tap Retry")
+                402 -> tr("授权码额度已用完，换一个授权码后点重试", "License code used up. Enter a new one, then tap Retry")
                 401, 403 -> tr("转写服务拒绝了请求，请检查密钥或权限", "The transcription service refused the request. Check the key or permissions")
                 else -> tr("转写失败（${e.code}）", "Transcription failed (${e.code})")
             }

@@ -40,7 +40,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material.icons.outlined.Redeem
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -154,14 +154,14 @@ private fun CloudPanel() {
     when (val s = status) {
         is CloudStatus.Ready -> BalanceCard(s.account)
         is CloudStatus.Failed -> Card {
-            Text(tr("暂时连不上拾日云", "Can't reach Dayweave Cloud right now"), style = Type.Headline)
-            Text(s.message, style = Type.Caption, maxLines = 3)
+            Text(s.message, style = Type.Headline)
             Pill(tr("重试", "Retry")) { graph.cloud.refresh() }
         }
+        CloudStatus.NoLicense -> Unit
         else -> Card { ShimmerLines(3) }
     }
+    LicenseCard(status)
     pricing?.let { PricingCard(it) }
-    RedeemCard()
     (status as? CloudStatus.Ready)?.account?.ledger?.takeIf { it.isNotEmpty() }?.let { ledger ->
         Card {
             Label(tr("最近的记录", "Recent activity"))
@@ -169,12 +169,7 @@ private fun CloudPanel() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            when (e.kind) {
-                                "transcribe" -> tr("转写 ${e.seconds} 秒人声", "Transcribed ${e.seconds}s of voice")
-                                "redeem" -> tr("兑换 ${e.note}", "Redeemed ${e.note}")
-                                "trial" -> tr("新用户体验额度", "Welcome credit")
-                                else -> e.note.ifBlank { e.kind }
-                            },
+                            tr("转写 ${e.seconds} 秒人声", "Transcribed ${e.seconds}s of voice"),
                             style = Type.Body,
                         )
                         Text(stamp(e.at), style = Type.Micro)
@@ -196,8 +191,11 @@ private fun BalanceCard(account: CloudAccount) {
             .clip(RoundedCornerShape(26.dp)).background(Glass.Veil.copy(alpha = 0.9f)).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(tr("余额", "Balance"), style = Type.Micro.copy(color = Ink.Secondary))
-        Text(usd(account.balanceMicros), style = Type.Display)
+        Text(tr("授权码剩余额度", "License balance"), style = Type.Micro.copy(color = Ink.Secondary))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(usd(account.balanceMicros), style = Type.Display)
+            if (account.grantedMicros > 0) Text(" / ${usd(account.grantedMicros)}", style = Type.Caption, modifier = Modifier.padding(bottom = 6.dp))
+        }
         Text(tr("约可转录 ${account.minutesLeft} 分钟人声", "About ${account.minutesLeft} minutes of voice left"), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -225,7 +223,7 @@ private fun PricingCard(p: CloudPricing) {
         }
         Text(
             tr("只按真正送去转写的人声时长计费。静音、环境音在手机上就被过滤掉；听音乐、播客和看视频的声音不录、不收费。", "You only pay for voice that's actually transcribed. Silence and room noise are filtered on the phone; music, podcasts and videos are never recorded or charged. ") +
-                tr("每日整理不另外收费。", "Daily digests are included.") + p.note,
+                tr("每日整理和主动提醒不另外收费。", "Daily digests and reminders are included.") + p.note,
             style = Type.Caption,
         )
     }
@@ -245,30 +243,54 @@ private fun PriceLine(icon: ImageVector, title: String, detail: String) {
     }
 }
 
+/** 授权码：没有账户，授权码就是使用权。每个码有固定额度，用完换一个新码。 */
 @Composable
-private fun RedeemCard() {
+private fun LicenseCard(status: CloudStatus) {
     val graph = LocalContext.current.graph
     val scope = rememberCoroutineScope()
+    val current = graph.settings.licenseCode
+    var editing by remember(current) { mutableStateOf(current.isNullOrBlank()) }
     var code by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     Card {
-        Label(tr("充值", "Top up"))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Field(code, { code = it; message = null }, tr("输入兑换码", "Enter a code"), Modifier.weight(1f))
-            Spacer(Modifier.width(10.dp))
-            Pill(if (busy) tr("兑换中", "Redeeming") else tr("兑换", "Redeem"), icon = Icons.Outlined.Redeem, enabled = code.isNotBlank() && !busy) {
-                busy = true
-                scope.launch {
-                    val error = withContext(Dispatchers.IO) { graph.cloud.redeem(code) }
-                    busy = false
-                    message = error ?: tr("已到账", "Added")
-                    if (error == null) code = ""
+        Label(tr("授权码", "License code"))
+        if (!editing && current != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 只显示首尾，避免截屏时泄露完整授权码
+                Text(mask(current), style = Type.Headline, modifier = Modifier.weight(1f))
+                Pill(tr("更换", "Change")) { editing = true; message = null }
+            }
+            if ((status as? CloudStatus.Ready)?.account?.balanceMicros?.let { it <= 0 } == true) {
+                Text(tr("这个授权码的额度已用完，换一个新的授权码即可继续。", "This code is used up. Enter a new one to continue."), style = Type.Caption.copy(color = Ink.Danger))
+            }
+        } else {
+            Text(tr("购买授权码后填在这里。每个授权码有固定额度，用完换新的。", "Enter the license code you bought. Each code has a fixed allowance; use a new one when it runs out."), style = Type.Caption)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Field(code, { code = it.uppercase(); message = null }, "DW-XXXXX-XXXXX-XXXXX-XXXXX", Modifier.weight(1f))
+                Spacer(Modifier.width(10.dp))
+                Pill(if (busy) tr("验证中", "Checking") else tr("使用", "Use"), icon = Icons.Outlined.Key, dark = true, enabled = code.isNotBlank() && !busy) {
+                    busy = true
+                    scope.launch {
+                        val error = withContext(Dispatchers.IO) { graph.cloud.activate(code) }
+                        busy = false
+                        message = error
+                        if (error == null) {
+                            code = ""
+                            editing = false
+                            graph.cloud.refresh()
+                        }
+                    }
                 }
             }
         }
-        message?.let { Text(it, style = Type.Caption.copy(color = if (it == tr("已到账", "Added")) Color(0xFF2EB67D) else Ink.Danger)) }
+        message?.let { Text(it, style = Type.Caption.copy(color = Ink.Danger)) }
     }
+}
+
+private fun mask(code: String): String {
+    val c = code.trim()
+    return if (c.length <= 10) "••••" else "${c.take(8)} •••• ${c.takeLast(4)}"
 }
 
 @Composable

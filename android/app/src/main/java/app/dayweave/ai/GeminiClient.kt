@@ -25,7 +25,8 @@ interface DigestModel {
     val name: String
     /** 可以用的时候为 null，否则是给用户看的原因。 */
     val problem: String?
-    fun generateJson(system: String, user: String, schema: JsonElement): String
+    /** task 标明用途（digest / agent）：拾日云据此使用自己保管的提示词，自带密钥时忽略。 */
+    fun generateJson(system: String, user: String, schema: JsonElement, task: String = "custom"): String
 }
 
 private fun geminiBody(system: String, user: String, schema: JsonElement) = buildJsonObject {
@@ -54,7 +55,7 @@ class GeminiApi(private val config: AiConfig) : DigestModel {
     override val name get() = config.effectiveModel
     override val problem get() = if (config.apiKey.isBlank()) tr("还没有填写 Gemini API 密钥", "No Gemini API key yet") else null
 
-    override fun generateJson(system: String, user: String, schema: JsonElement): String = geminiText(
+    override fun generateJson(system: String, user: String, schema: JsonElement, task: String): String = geminiText(
         postJson(
             "https://generativelanguage.googleapis.com/v1beta/models/${config.effectiveModel}:generateContent",
             geminiBody(system, user, schema),
@@ -69,7 +70,7 @@ class VertexGemini(private val auth: GoogleAuth, private val config: AiConfig) :
     override val name get() = config.effectiveModel
     override val problem get() = if (!auth.available) tr("还没有导入 Google Cloud 服务账号", "No Google Cloud service account yet") else null
 
-    override fun generateJson(system: String, user: String, schema: JsonElement): String = geminiText(
+    override fun generateJson(system: String, user: String, schema: JsonElement, task: String): String = geminiText(
         postJson(
             "https://aiplatform.googleapis.com/v1/projects/${auth.projectId}/locations/global/publishers/google/models/${config.effectiveModel}:generateContent",
             geminiBody(system, user, schema),
@@ -87,7 +88,7 @@ class OpenAiCompatible(private val config: AiConfig) : DigestModel {
         else -> null
     }
 
-    override fun generateJson(system: String, user: String, schema: JsonElement): String {
+    override fun generateJson(system: String, user: String, schema: JsonElement, task: String): String {
         val base = config.baseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
         val body = buildJsonObject {
             put("model", config.effectiveModel)
@@ -110,11 +111,11 @@ class OpenAiCompatible(private val config: AiConfig) : DigestModel {
     }
 }
 
-/** 拾日云提供的整理，费用已包含在有效转录时长里。 */
+/** 拾日云提供的整理：提示词在服务端，这里只发任务类型和转写内容。费用已包含在有效转录时长里。 */
 class CloudDigest(private val cloud: CloudApi) : DigestModel {
     override val name = tr("拾日云", "Dayweave Cloud")
     override val problem get() = cloud.problem
-    override fun generateJson(system: String, user: String, schema: JsonElement) = cloud.generateJson(system, user, schema)
+    override fun generateJson(system: String, user: String, schema: JsonElement, task: String) = cloud.assist(task, user)
 }
 
 fun digestModel(config: AiConfig, auth: GoogleAuth): DigestModel = when (config.provider) {

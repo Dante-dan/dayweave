@@ -24,11 +24,12 @@ import kotlinx.serialization.json.put
 import app.dayweave.core.tr
 
 @Serializable
-data class LedgerEntry(val at: Long, val kind: String, val seconds: Long = 0, val micros: Long, val note: String = "")
+data class LedgerEntry(val at: Long, val kind: String, val seconds: Long = 0, val micros: Long)
 
-/** 拾日云的账户：金额单位是百万分之一美元。 */
+/** 一个授权码的额度与用量。金额单位是百万分之一美元。 */
 @Serializable
 data class CloudAccount(
+    val grantedMicros: Long = 0,
     val balanceMicros: Long,
     val priceMicrosPerMinute: Long,
     val monthSeconds: Long = 0,
@@ -48,14 +49,18 @@ data class CloudPricing(
 sealed interface CloudStatus {
     data object Unknown : CloudStatus
     data object Loading : CloudStatus
+    /** 还没有填授权码。 */
+    data object NoLicense : CloudStatus
     data class Ready(val account: CloudAccount) : CloudStatus
     data class Failed(val message: String) : CloudStatus
 }
 
+private class NoLicenseException : IllegalStateException("no license code")
+
 /**
- * 拾日云（商业版）：转写和整理用我们提供的密钥，按“有效转录时长”计费。
+ * 拾日云（商业版）：转写和整理用我们提供的密钥。没有账户体系，授权码就是凭证：
+ * 每个授权码有固定额度，按“有效转录时长”扣费，用完换一个新的授权码。
  * 有效时长由服务端按收到的音频长度计算；App 在本地已经去掉了静音、环境音和播放的声音。
- * 首次使用时自动创建一个匿名账户，令牌存在本机。
  */
 class CloudApi(private val settings: Settings, private val scope: CoroutineScope) : SpeechEngine {
     private val base = BuildConfig.CLOUD_URL.trimEnd('/')
@@ -70,71 +75,73 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
     override val problem: String?
         get() = when {
             base.isBlank() -> tr("这个版本没有接入拾日云", "This build isn't connected to Dayweave Cloud")
-            (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 } == true -> tr("拾日云余额不足", "Dayweave Cloud balance is too low")
+            settings.licenseCode.isNullOrBlank() -> tr("还没有填写拾日云授权码", "No Dayweave Cloud license code yet")
+            (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 } == true -> tr("授权码额度已用完", "This license code is used up")
             else -> null
         }
 
-    @Synchronized
-    private fun token(): String {
-        settings.cloudToken?.let { return it }
-        val created = json.parseToJsonElement(postJson("$base/v1/accounts", "{}")).jsonObject
-        val token = created.getValue("token").jsonPrimitive.content
-        settings.cloudToken = token
-        return token
+    private fun auth(code: String? = settings.licenseCode): Map<String, String> {
+        if (code.isNullOrBlank()) throw NoLicenseException()
+        return mapOf("Authorization" to "Bearer ${code.trim()}")
     }
 
-    private fun auth() = mapOf("Authorization" to "Bearer ${token()}")
-
-    /** 令牌失效（例如换了服务器）时重新建一个账户再试一次。 */
-    private fun <T> authed(block: (Map<String, String>) -> T): T = try {
-        block(auth())
-    } catch (e: HttpException) {
-        if (e.code != 401) throw e
-        settings.cloudToken = null
-        block(auth())
-    }
-
-    /** 刷新账户和计价，用于“服务与用量”页面。 */
+    /** 刷新额度和计价，用于“服务与用量”页面。 */
     fun refresh() {
         if (base.isBlank()) return
         scope.launch(Dispatchers.IO) {
+            runCatching { _pricing.value = json.decodeFromString<CloudPricing>(getJson("$base/v1/pricing")) }
+            if (settings.licenseCode.isNullOrBlank()) {
+                _status.value = CloudStatus.NoLicense
+                return@launch
+            }
             if (_status.value !is CloudStatus.Ready) _status.value = CloudStatus.Loading
-            runCatching {
-                _pricing.value = json.decodeFromString<CloudPricing>(getJson("$base/v1/pricing"))
-                json.decodeFromString<CloudAccount>(authed { getJson("$base/v1/me", it) })
-            }.onSuccess { _status.value = CloudStatus.Ready(it) }
-                .onFailure { _status.value = CloudStatus.Failed(it.message ?: tr("连接失败", "Couldn't connect")) }
+            runCatching { json.decodeFromString<CloudAccount>(getJson("$base/v1/me", auth())) }
+                .onSuccess { _status.value = CloudStatus.Ready(it) }
+                .onFailure {
+                    _status.value = CloudStatus.Failed(
+                        if (it is HttpException && it.code == 401) tr("授权码无效", "Invalid license code")
+                        else tr("连接失败", "Couldn't connect"),
+                    )
+                }
         }
     }
 
-    /** 兑换充值码。成功返回 null，否则返回错误说明。 */
-    fun redeem(code: String): String? = try {
-        authed { postJson("$base/v1/redeem", buildJsonObject { put("code", code.trim()) }.toString(), it) }
-        refresh()
+    /** 使用一个授权码：先向服务端核对，有效才保存。成功返回 null，否则返回错误说明。 */
+    fun activate(code: String): String? = try {
+        val account = json.decodeFromString<CloudAccount>(getJson("$base/v1/me", auth(code)))
+        settings.licenseCode = code.trim()
+        _status.value = CloudStatus.Ready(account)
         null
     } catch (e: HttpException) {
         when (e.code) {
-            404 -> tr("兑换码无效", "Invalid code")
-            409 -> tr("兑换码已经用过了", "This code has already been used")
-            else -> tr("兑换失败（${e.code}）", "Couldn't redeem (${e.code})")
+            401 -> tr("授权码无效", "Invalid license code")
+            429 -> tr("尝试次数太多，请一小时后再试", "Too many attempts. Try again in an hour")
+            else -> tr("验证失败（${e.code}）", "Couldn't verify (${e.code})")
         }
     } catch (e: Exception) {
         tr("网络不可用", "No network")
     }
 
+    fun clearLicense() {
+        settings.licenseCode = null
+        _status.value = CloudStatus.NoLicense
+    }
+
     override fun recognize(pcm: ShortArray, from: Int, to: Int): Recognition {
         val body = buildJsonObject { put("audio", pcmBase64(pcm, from, to)) }.toString()
-        val response = authed { postJson("$base/v1/transcribe", body, it, readTimeoutMs = 120_000) }
+        val response = postJson("$base/v1/transcribe", body, auth(), readTimeoutMs = 120_000)
         return parseRecognition(json.parseToJsonElement(response).jsonObject)
     }
 
-    fun generateJson(system: String, user: String, schema: JsonElement): String {
+    /** 每日整理或主动提醒：提示词在服务端，只发任务类型、语言和转写内容。 */
+    fun assist(task: String, input: String): String {
+        require(task == "digest" || task == "agent") { "Dayweave Cloud only runs digests and reminders" }
         val body = buildJsonObject {
-            put("system", system)
-            put("user", user)
-            put("schema", schema)
+            put("kind", task)
+            put("lang", if (app.dayweave.core.Lang.english) "en" else "zh")
+            put("input", input)
         }.toString()
-        return json.parseToJsonElement(authed { postJson("$base/v1/digest", body, it, readTimeoutMs = 180_000) })
+        return json.parseToJsonElement(postJson("$base/v1/assist", body, auth(), readTimeoutMs = 180_000))
             .jsonObject.getValue("text").jsonPrimitive.content
     }
 }

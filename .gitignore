@@ -54,3 +54,6 @@ node_modules/
 # Dayweave Cloud local database
 /server/data/
 /android/app/src/main/assets/vad/*.onnx
+
+# 授权码生成工具与明文授权码只在本地
+/server/local/

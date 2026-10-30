@@ -12,31 +12,42 @@
 | --- | --- | --- |
 | **合计** | | **$0.0404 / 分钟有效人声（约 $2.42 / 小时）** |
 
-价格核对于 2026-10-30。整理和主动提醒不单独收费，每个账户每天最多 200 次 AI 调用。
+价格核对于 2026-10-30。整理和主动提醒不单独收费，每个授权码每天最多 120 次 AI 调用。
+
+## 授权码
+
+没有用户体系：**授权码就是使用权**。每个授权码有固定额度（例如 $5），按有效转录时长扣费，用完即止，不能充值，换一个新码即可。
+
+- 服务端只保存授权码的 SHA-256 和余额，不保存明文；即使数据库泄露也拿不到可用的码。
+- 授权码 `DW-XXXXX-XXXXX-XXXXX-XXXXX`：Crockford Base32，100 bit 随机熵，在**本地**生成（`server/local/`，不进仓库），明文只写在本机 `server/local/codes.csv`（权限 600）。
+- 同一来源一小时内输错 20 次即拒绝（429），防止猜码。
+
+发码（明文留在本地，只把哈希导入服务器）：
+
+```bash
+node server/local/issue-codes.mjs --count 10 --usd 5 --label sale-2026-10-30 \
+  | ssh us-xl 'docker exec -i dayweave-cloud node src/import-licenses.mjs'
+```
 
 ## 运行
 
 ```bash
 cp .env.example .env   # 填服务账号路径
 npm start
-npm run admin -- codes --usd 5 --count 3   # 生成充值码
 ```
 
-App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://cloud.example.com`。
-本地联调：`adb reverse tcp:8787 tcp:8787`，再用 `-PcloudUrl=http://127.0.0.1:8787` 打包（调试包允许明文 HTTP 到本机）。
+App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://…`，或在 `android/local.properties` 里写 `cloudUrl=…`（不进仓库）。
 
 ## 接口
 
+除了计价说明，所有接口都要 `Authorization: Bearer <授权码>`。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/v1/pricing` | 计价说明 |
-| POST | `/v1/accounts` | 创建匿名账户，返回令牌，赠送体验额度 |
-| GET | `/v1/me` | 余额、本月用量、最近账本 |
-| POST | `/v1/redeem` | `{code}` 兑换充值码 |
-| POST | `/v1/transcribe` | `{audio}` 16 kHz 16-bit 单声道 PCM 的 base64，≤ 60 秒；返回 Speech-to-Text v2 原始结果 |
-| POST | `/v1/digest` | `{system, user, schema}`，返回 `{text}` |
-
-尚未接入在线支付；目前用充值码。
+| GET | `/v1/pricing` | 计价说明（公开） |
+| GET | `/v1/me` | 授权码的额度、余额、本月用量、最近记录 |
+| POST | `/v1/transcribe` | `{audio}` 16 kHz 16-bit 单声道 PCM 的 base64，≤ 60 秒；返回 Speech-to-Text v2 结果；按秒扣费 |
+| POST | `/v1/assist` | `{kind: digest \| agent, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 120 次 |
 
 ## 线上部署（us-xl）
 

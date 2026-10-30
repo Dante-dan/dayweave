@@ -146,7 +146,7 @@ class Agent(
                 val ai = model()
                 if (ai.problem != null) return@withLock
                 val proposed = runCatching {
-                    json.decodeFromString<Proposals>(ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, prompt(segment), SCHEMA)).actions
+                    json.decodeFromString<Proposals>(ai.generateJson(SYSTEM + app.dayweave.core.Lang.outputRule, prompt(segment), SCHEMA, task = "agent")).actions
                 }.onFailure { Log.w("Dayweave", "agent failed", it) }.getOrNull() ?: return@withLock
                 val now = System.currentTimeMillis()
                 val fresh = proposed.filter { it.confidence >= MIN_CONFIDENCE }.mapNotNull { p ->

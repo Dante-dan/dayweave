@@ -9,6 +9,7 @@
 
 import base64
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-PROJECT = "gen-lang-client-0050324770"
+# 项目 ID 从环境变量或服务账号 JSON 读取，不写进仓库。
+PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT") or ""
 ROOT = Path(__file__).resolve().parents[2]
 # 中英双语：普通话为主，同时允许英语。
 LANGUAGES = ["cmn-Hans-CN", "en-US"]
@@ -70,6 +72,7 @@ def credentials() -> dict:
     creds = {}
     if sa := env_value("GOOGLE_SERVICE_ACCOUNT_FILE"):
         creds["token"] = service_account_token(sa)
+        creds["project"] = json.loads(Path(sa).expanduser().read_text())["project_id"]
     if key := env_value("GOOGLE_SPEECH_API_KEY"):
         creds["key"] = key
     if not creds:
@@ -93,7 +96,7 @@ def post(url: str, body: dict, creds: dict) -> dict:
 
 def recognize_v2(audio: bytes, creds: dict) -> dict:
     """Chirp 3，多语言。"""
-    url = f"https://us-speech.googleapis.com/v2/projects/{PROJECT}/locations/us/recognizers/_:recognize"
+    url = f"https://us-speech.googleapis.com/v2/projects/{PROJECT or creds.get('project')}/locations/us/recognizers/_:recognize"
     body = {
         "config": {
             # 探针样本固定为 16 kHz 单声道 PCM。显式指定格式，探针被强制停止、文件头未回填时也能识别。

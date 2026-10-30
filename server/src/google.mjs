@@ -42,7 +42,7 @@ async function post(url, body, attempt = 0) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(180_000),
+    signal: AbortSignal.timeout(90_000), // 低于 Cloudflare 的 100 秒上限，超时能干净地报错,
   })
   // 配额紧张时（429）稍等再试一次。
   if (res.status === 429 && attempt < 2) {
