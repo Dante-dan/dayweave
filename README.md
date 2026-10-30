@@ -10,7 +10,7 @@ Dayweave 是一套尽量无需操作的个人秘书系统：通过随身设备�
 
 > **当前状态：0.2。** `android/` 是可以安装的安卓 App，`server/` 是商业版的服务端“拾日云”。
 >
-> - **开源版**：转写和整理都用你自己的密钥（Google Cloud 服务账号；整理可选 Gemini API、OpenAI 兼容接口或 Vertex AI），在 App 的“采集 → 服务”里填写。
+> - **源码版**：转写和整理都用你自己的密钥（Google Cloud 服务账号；整理可选 Gemini API、OpenAI 兼容接口或 Vertex AI），在 App 的“采集 → 服务”里填写。
 > - 采集是安静的旁听者：默认用手机麦克风，不占耳机和通话；不需要录屏权限，播放的音乐、播客、视频只记场景、不录音。手机上用 Silero VAD 去掉静音和环境音，只上传人声。
 > - 主动助理：对话里出现时间和约定时，通知里一键设闹钟或加到日程。说话人可以标注名字，之后按声纹自动认出。
 >
@@ -128,6 +128,6 @@ android/scripts/push-credentials.sh           # 把 .env 里的 Google 服务账
 
 ## 许可证
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md)：源码公开，个人、学习、研究、公益等非商业用途可以自由使用、修改和分发；商业使用需要另行取得授权。
+[PolyForm Strict 1.0.0](LICENSE.md)：源码公开，供阅读和个人非商业使用；**不允许修改、不允许再分发、不允许商业使用**。如需商用或其他授权，请联系作者。
 
-注意：不可商用的许可证不属于 OSI 定义的“开源”，更准确的说法是“源码公开”（source-available）。
+这是“源码公开”（source-available），不属于 OSI 定义的开源。

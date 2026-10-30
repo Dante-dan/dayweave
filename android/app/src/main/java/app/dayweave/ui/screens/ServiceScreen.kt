@@ -89,7 +89,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** 服务与用量：在拾日云（按有效转录时长付费）和自带密钥（开源版）之间切换。 */
+/** 服务与用量：在拾日云（按有效转录时长付费）和自带密钥（源码版）之间切换。 */
 @Composable
 fun ServiceScreen(nav: Navigator, actions: Actions) {
     val graph = LocalContext.current.graph
@@ -105,7 +105,7 @@ fun ServiceScreen(nav: Navigator, actions: Actions) {
         Column(Modifier.padding(start = 4.dp)) {
             Text("服务与用量", style = Type.Display)
             Text(
-                if (cloudAvailable) "用拾日云省心，或者填自己的密钥" else "开源版：转写和整理都使用你自己的密钥",
+                if (cloudAvailable) "用拾日云省心，或者填自己的密钥" else "源码版：转写和整理都使用你自己的密钥",
                 style = Type.Caption, modifier = Modifier.padding(top = 4.dp),
             )
         }

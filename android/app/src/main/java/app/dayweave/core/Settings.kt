@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** 用户选中的麦克风输入。蓝牙地址在 HyperOS 上会被隐藏，所以同时记设备名。 */
 data class InputSelection(val type: Int, val address: String, val name: String)
 
-/** 转写与整理由谁提供：拾日云（按有效转录时长计费）或用户自己的密钥（开源版）。 */
+/** 转写与整理由谁提供：拾日云（按有效转录时长计费）或用户自己的密钥（源码版）。 */
 enum class ServiceMode { CLOUD, OWN }
 
 /** 自带密钥时的整理模型。 */
@@ -31,7 +31,7 @@ data class AiConfig(
     val effectiveModel get() = model.ifBlank { defaultModel }
 }
 
-/** 是否带了拾日云的服务地址。开源构建不带，只能自带密钥。 */
+/** 是否带了拾日云的服务地址。源码版构建不带，只能自带密钥。 */
 val cloudAvailable get() = BuildConfig.CLOUD_URL.isNotBlank()
 
 /** 密钥只存在 App 私有目录，不进备份、不打包、不上传到拾日云。 */

@@ -16,7 +16,7 @@ android {
         versionCode = 2
         versionName = "0.2"
         ndk { abiFilters += "arm64-v8a" }
-        // 拾日云的地址。开源构建留空，只能自带密钥：./gradlew assembleRelease -PcloudUrl=https://...
+        // 拾日云的地址。源码版构建留空，只能自带密钥：./gradlew assembleRelease -PcloudUrl=https://...
         buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: ""}\"")
     }
 

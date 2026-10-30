@@ -13,7 +13,7 @@ import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 
 /**
- * 用户自己的 Google Cloud 服务账号（开源版自带密钥）。凭证放在 App 私有目录 files/google-sa.json，
+ * 用户自己的 Google Cloud 服务账号（源码版自带密钥）。凭证放在 App 私有目录 files/google-sa.json，
  * 在 App 里导入，或用 android/scripts/push-credentials.sh 写入；不打包进 APK、不上传。令牌有效期 1 小时，提前 5 分钟刷新。
  */
 class GoogleAuth(private val file: File) {
