@@ -167,6 +167,6 @@ fun blossomIcon(filled: Boolean): ImageVector {
     return if (filled) {
         builder.addPath(nodes, fill = SolidColor(Color.Black)).build()
     } else {
-        builder.addPath(nodes, fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.5f).build()
+        builder.addPath(nodes, fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.8f, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round).build()
     }
 }

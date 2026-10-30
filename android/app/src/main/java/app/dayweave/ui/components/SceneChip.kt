@@ -7,11 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Podcasts
-import androidx.compose.material.icons.rounded.SmartDisplay
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,11 +31,11 @@ import app.dayweave.ui.theme.Type
 
 val SceneKind.icon: ImageVector
     get() = when (this) {
-        SceneKind.MUSIC -> Icons.Rounded.MusicNote
-        SceneKind.PODCAST -> Icons.Rounded.Podcasts
-        SceneKind.VIDEO -> Icons.Rounded.SmartDisplay
-        SceneKind.CALL -> Icons.Rounded.Call
-        SceneKind.MEDIA -> Icons.Rounded.GraphicEq
+        SceneKind.MUSIC -> Icons.Outlined.MusicNote
+        SceneKind.PODCAST -> Icons.Outlined.Podcasts
+        SceneKind.VIDEO -> Icons.Outlined.SmartDisplay
+        SceneKind.CALL -> Icons.Outlined.Call
+        SceneKind.MEDIA -> Icons.Outlined.GraphicEq
     }
 
 /** 每种场景一个柔和的粉彩底色。 */

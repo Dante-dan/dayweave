@@ -30,10 +30,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -170,7 +170,7 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
                 style = Type.Headline,
                 modifier = Modifier.weight(1f),
             )
-            Icon(Icons.Rounded.Close, "关闭", modifier = Modifier.size(28.dp).pressable(nav.back, scaleTo = 0.8f))
+            Icon(Icons.Outlined.Close, "关闭", modifier = Modifier.size(28.dp).pressable(nav.back, scaleTo = 0.8f))
         }
 
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -232,7 +232,7 @@ fun EnrollScreen(nav: Navigator, actions: Actions) {
 private fun Intro(captureRunning: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(96.dp).clip(CircleShape).background(Ink.StoryBrush), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Mic, null, tint = Color.White, modifier = Modifier.size(44.dp))
+            Icon(Icons.Outlined.MicNone, null, tint = Color.White, modifier = Modifier.size(44.dp))
         }
         Spacer(Modifier.height(28.dp))
         Text("让拾日认出你", style = Type.Display, textAlign = TextAlign.Center)
@@ -277,7 +277,7 @@ private fun Done() {
         Box(
             Modifier.size(104.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value }.clip(CircleShape).background(Ink.StoryBrush),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(52.dp)) }
+        ) { Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(52.dp)) }
         }
         Spacer(Modifier.height(24.dp))
         Text("声纹已录入", style = Type.Display)
@@ -328,7 +328,7 @@ private fun RecordButton(recording: Boolean, elapsed: Long, level: Double, onCli
                     .background(if (recording) Ink.Live else Ink.Primary),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (recording) Icons.Rounded.Stop else Icons.Rounded.Mic, if (recording) "读完了" else "开始朗读", tint = if (recording) Color.White else Ink.OnPrimary, modifier = Modifier.size(32.dp))
+                Icon(if (recording) Icons.Outlined.Stop else Icons.Outlined.MicNone, if (recording) "读完了" else "开始朗读", tint = if (recording) Color.White else Ink.OnPrimary, modifier = Modifier.size(32.dp))
             }
         }
         Text(if (recording) "读完后轻触" else "轻触开始朗读", style = Type.Caption, modifier = Modifier.padding(top = 12.dp))

@@ -25,8 +25,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -221,7 +221,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Search, null, tint = Ink.Secondary, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.Search, null, tint = Ink.Secondary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) Text("搜索说过的话或说话人", style = Type.Body.copy(color = Ink.Tertiary))
@@ -233,7 +233,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             )
         }
         AnimatedVisibility(query.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
-            Icon(Icons.Rounded.Close, "清除", tint = Ink.Secondary, modifier = Modifier.size(18.dp).pressable({ onChange("") }))
+            Icon(Icons.Outlined.Close, "清除", tint = Ink.Secondary, modifier = Modifier.size(18.dp).pressable({ onChange("") }))
         }
     }
 }

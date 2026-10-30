@@ -36,11 +36,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Redeem
+import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Redeem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,7 +100,7 @@ fun ServiceScreen(nav: Navigator, actions: Actions) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
         }
         Column(Modifier.padding(start = 4.dp)) {
             Text("服务与用量", style = Type.Display)
@@ -256,7 +256,7 @@ private fun RedeemCard() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Field(code, { code = it; message = null }, "输入兑换码", Modifier.weight(1f))
             Spacer(Modifier.width(10.dp))
-            Pill(if (busy) "兑换中" else "兑换", icon = Icons.Rounded.Redeem, enabled = code.isNotBlank() && !busy) {
+            Pill(if (busy) "兑换中" else "兑换", icon = Icons.Outlined.Redeem, enabled = code.isNotBlank() && !busy) {
                 busy = true
                 scope.launch {
                     val error = withContext(Dispatchers.IO) { graph.cloud.redeem(code) }
@@ -280,10 +280,10 @@ private fun OwnKeysPanel(actions: Actions) {
     var saMessage by remember { mutableStateOf<String?>(null) }
 
     Card {
-        Header(Icons.Rounded.GraphicEq, "转写 · Google Speech-to-Text", "Chirp 3，中英混说，自动区分说话人")
+        Header(Icons.Outlined.GraphicEq, "转写 · Google Speech-to-Text", "Chirp 3，中英混说，自动区分说话人")
         if (project != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF2EB67D), modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFF2EB67D), modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(project, style = Type.Headline)
@@ -333,7 +333,7 @@ private fun AiCard() {
     val dirty = draft != saved
 
     Card {
-        Header(Icons.Rounded.AutoAwesome, "整理 · AI 模型", "每天的总结、决定、要跟进的事")
+        Header(Icons.Outlined.AutoAwesome, "整理 · AI 模型", "每天的总结、决定、要跟进的事")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AiProvider.entries.forEach { p ->
                 Pill(p.label, dark = draft.provider == p) { draft = draft.copy(provider = p, model = ""); message = null }

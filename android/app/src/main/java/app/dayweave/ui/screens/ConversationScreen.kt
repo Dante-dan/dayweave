@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
+import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -76,7 +76,7 @@ fun ConversationScreen(id: String, nav: Navigator) {
 
     Column(Modifier.fillMaxSize().sharedSegment(id).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+            RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 if (segment != null) {

@@ -42,9 +42,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.ViewAgenda
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -117,11 +114,11 @@ private sealed interface Route {
     data class Person(val id: String) : Route
 }
 
-/** 底栏：选中与否用同一个实心图形，只靠颜色和光影区分（和 iOS 的标签栏一致）。 */
+/** 底栏：选中与否用同一个描边图形，只靠颜色和光影区分。 */
 enum class Tab(val icon: ImageVector, val label: String) {
-    DIGEST(blossomIcon(filled = true), "拾日"),
-    TIMELINE(Icons.Rounded.ViewAgenda, "时间线"),
-    CAPTURE(Icons.Rounded.GraphicEq, "采集"),
+    DIGEST(blossomIcon(filled = false), "拾日"),
+    TIMELINE(Icons.Outlined.ViewAgenda, "时间线"),
+    CAPTURE(Icons.Outlined.GraphicEq, "采集"),
 }
 
 /** 页面跳转用的回调集合。 */

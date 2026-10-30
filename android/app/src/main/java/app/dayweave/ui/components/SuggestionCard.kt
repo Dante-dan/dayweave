@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.CheckCircleOutline
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,9 +44,9 @@ fun SuggestionCard(
     modifier: Modifier = Modifier,
 ) {
     val icon = when (s.kind) {
-        "alarm" -> Icons.Rounded.Alarm
-        "event" -> Icons.Rounded.Event
-        else -> Icons.Rounded.CheckCircleOutline
+        "alarm" -> Icons.Outlined.Alarm
+        "event" -> Icons.Outlined.Event
+        else -> Icons.Outlined.CheckCircleOutline
     }
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Ink.StoryBrush).padding(1.5.dp)
@@ -73,10 +73,10 @@ fun SuggestionCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (s.at != null) {
-                Chip(Icons.Rounded.Alarm, if (s.kind == "event") "提前 15 分钟" else "设闹钟", dark = s.kind == "alarm") { onAction("alarm") }
-                Chip(Icons.Rounded.Event, "加到日程", dark = s.kind == "event") { onAction("event") }
+                Chip(Icons.Outlined.Alarm, if (s.kind == "event") "提前 15 分钟" else "设闹钟", dark = s.kind == "alarm") { onAction("alarm") }
+                Chip(Icons.Outlined.Event, "加到日程", dark = s.kind == "event") { onAction("event") }
             } else {
-                Chip(Icons.Rounded.CheckCircleOutline, "记下了", dark = true) { onAction("done") }
+                Chip(Icons.Outlined.CheckCircleOutline, "记下了", dark = true) { onAction("done") }
             }
             Spacer(Modifier.weight(1f))
             Text("忽略", style = Type.Caption, modifier = Modifier.pressable({ onAction("dismiss") }).padding(8.dp))

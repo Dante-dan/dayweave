@@ -24,8 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,9 +84,9 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
     ) {
         item("bar") {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
                 Spacer(Modifier.weight(1f))
-                RoundGlassButton({ graph.digest.refresh(date, force = true) }) { Icon(Icons.Rounded.Refresh, "重新整理", modifier = Modifier.size(20.dp)) }
+                RoundGlassButton({ graph.digest.refresh(date, force = true) }) { Icon(Icons.Outlined.Refresh, "重新整理", modifier = Modifier.size(20.dp)) }
             }
         }
 

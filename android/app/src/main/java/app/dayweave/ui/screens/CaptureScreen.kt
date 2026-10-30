@@ -37,19 +37,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.CloudDone
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.Fingerprint
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.SpeakerGroup
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SpeakerGroup
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -82,15 +82,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.Cloud
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.ToggleOn
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.ToggleOn
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.dayweave.capture.CaptureService
 import app.dayweave.capture.isBluetooth
@@ -173,9 +173,9 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         SoftButton(
                             if (capture.paused) "继续" else "暂停",
-                            if (capture.paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                            if (capture.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
                         ) { if (capture.paused) CaptureService.resume(context) else CaptureService.pause(context) }
-                        SoftButton("结束", Icons.Rounded.Stop) { CaptureService.stop(context) }
+                        SoftButton("结束", Icons.Outlined.Stop) { CaptureService.stop(context) }
                     }
                 }
             }
@@ -187,7 +187,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
         Group("输入") {
             val bluetooth = input?.isBluetooth == true
             Item(
-                icon = if (bluetooth) Icons.Rounded.Headphones else Icons.Rounded.Mic,
+                icon = if (bluetooth) Icons.Outlined.Headphones else Icons.Outlined.MicNone,
                 title = "麦克风",
                 subtitle = when {
                     input == null -> "手机麦克风 · 不影响耳机里的音乐和通话"
@@ -200,7 +200,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             )
             Divider()
             Item(
-                icon = Icons.Rounded.LibraryMusic,
+                icon = Icons.Outlined.LibraryMusic,
                 title = "识别正在播放的内容",
                 subtitle = if (mediaAccess) "已开启：时间线会写明 App 和曲目，例如“听音乐 · 汽水音乐”"
                 else "可选。只读“正在播放”的信息，不读通知内容；不开启也能分出音乐、播客和通话",
@@ -213,7 +213,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             val callFolder by graph.callRecordings.folder.collectAsStateWithLifecycle()
             val callCount by graph.callRecordings.imported.collectAsStateWithLifecycle()
             Item(
-                icon = Icons.Rounded.Call,
+                icon = Icons.Outlined.Call,
                 title = "自动导入通话录音",
                 subtitle = if (callFolder != null) "已开启 · 已导入 $callCount 段 · 原录音文件不会被改动或上传"
                 else "通话时拾日听不到对方。打开系统的通话录音，再授权拾日读取录音文件夹，挂断后自动转写",
@@ -228,7 +228,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
 
         Group("无感使用") {
             Item(
-                icon = Icons.Rounded.Home,
+                icon = Icons.Outlined.Home,
                 title = "开始后回到桌面",
                 subtitle = "麦克风就绪后自动退到后台，在通知栏暂停或结束",
                 trailing = { GlassSwitch(autoBackground, enabled = true, onChange = graph.settings::setAutoBackground) },
@@ -236,7 +236,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             )
             Divider()
             Item(
-                icon = Icons.Rounded.ToggleOn,
+                icon = Icons.Outlined.ToggleOn,
                 title = "添加到控制中心",
                 subtitle = "下拉控制中心，一下开始、暂停或继续",
                 trailing = { Chevron() },
@@ -264,7 +264,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
 
         Group("主人声纹") {
             Item(
-                icon = Icons.Rounded.Fingerprint,
+                icon = Icons.Outlined.Fingerprint,
                 title = if (enrolled) "已认识你的声音" else "录入你的声音",
                 subtitle = if (enrolled) "重新录入可以提高识别准确度" else "朗读 6 段短文，约 1 分钟；声纹只保存在本机",
                 trailing = { if (enrolled) Check() else Chevron() },
@@ -289,7 +289,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
 
         Group("服务") {
             Item(
-                icon = if (mode == ServiceMode.CLOUD) Icons.Rounded.Cloud else Icons.Rounded.Key,
+                icon = if (mode == ServiceMode.CLOUD) Icons.Outlined.Cloud else Icons.Outlined.Key,
                 title = if (mode == ServiceMode.CLOUD) "拾日云" else "自带密钥",
                 subtitle = "本月有效转录 ${app.dayweave.ui.components.minutes(monthSpeech)} · 静音、环境音和播放的声音不计入",
                 trailing = { Chevron() },
@@ -299,7 +299,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
 
         Group("数据") {
             Item(
-                icon = Icons.Rounded.DeleteSweep,
+                icon = Icons.Outlined.DeleteSweep,
                 title = "删除全部档案",
                 subtitle = "文字、场景记录、整理和匿名说话人都会清除，声纹保留",
                 trailing = {}, onClick = { confirmWipe = true }, danger = true,
@@ -454,11 +454,11 @@ private fun Group(title: String, content: @Composable () -> Unit) {
 private fun Divider() = HorizontalDivider(thickness = 0.5.dp, color = Glass.Veil.copy(alpha = 0.9f), modifier = Modifier.padding(start = 58.dp))
 
 @Composable
-private fun Chevron() = Icon(Icons.Rounded.ChevronRight, null, tint = Ink.Tertiary)
+private fun Chevron() = Icon(Icons.Outlined.ChevronRight, null, tint = Ink.Tertiary)
 
 @Composable
 private fun Check() = Box(Modifier.size(22.dp).clip(CircleShape).background(Ink.StoryBrush), contentAlignment = Alignment.Center) {
-    Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+    Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
 }
 
 @Composable
@@ -515,7 +515,7 @@ private fun InputSheet(onDismiss: () -> Unit) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("选择麦克风", style = Type.Title, modifier = Modifier.weight(1f))
-                Icon(Icons.Rounded.Refresh, "刷新", modifier = Modifier.pressable({ options = listInputs(context) }).padding(6.dp))
+                Icon(Icons.Outlined.Refresh, "刷新", modifier = Modifier.pressable({ options = listInputs(context) }).padding(6.dp))
             }
             Text(
                 "手机麦克风最安静，完全不影响耳机。蓝牙耳机的麦克风要借用通话通道，所以拾日只在耳机空闲时借用，" +
@@ -539,7 +539,7 @@ private fun InputRow(option: InputOption, selected: Boolean, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(42.dp).clip(CircleShape).background(Glass.Veil.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
-            Icon(if (option.isBluetooth) Icons.Rounded.Headphones else Icons.Rounded.Mic, null)
+            Icon(if (option.isBluetooth) Icons.Outlined.Headphones else Icons.Outlined.MicNone, null)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

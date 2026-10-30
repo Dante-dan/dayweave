@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -139,7 +139,7 @@ fun CaptureOrb(
                 label = "icon",
             ) { on ->
                 Icon(
-                    if (on) Icons.Rounded.GraphicEq else Icons.Rounded.Mic,
+                    if (on) Icons.Outlined.GraphicEq else Icons.Outlined.MicNone,
                     contentDescription = if (on) "停止记录" else "开始记录",
                     tint = if (on) Ink.OnPrimary else Ink.Primary,
                     modifier = Modifier.size(size * 0.26f),

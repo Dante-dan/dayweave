@@ -32,10 +32,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -186,7 +186,7 @@ private fun MiniOrb(running: Boolean, onClick: () -> Unit) {
         }
         Box(Modifier.size(36.dp).clip(CircleShape).background(if (running) Ink.Primary else Glass.FillStrong), contentAlignment = Alignment.Center) {
             Icon(
-                if (running) Icons.Rounded.GraphicEq else Icons.Rounded.Mic, if (running) "正在记录" else "开始记录",
+                if (running) Icons.Outlined.GraphicEq else Icons.Outlined.MicNone, if (running) "正在记录" else "开始记录",
                 tint = if (running) Ink.OnPrimary else Ink.Primary, modifier = Modifier.size(18.dp),
             )
         }
@@ -251,7 +251,7 @@ private fun DayCard(
 
         Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("查看这一天", style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold))
-            Icon(Icons.Rounded.ChevronRight, null, tint = Ink.Primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.ChevronRight, null, tint = Ink.Primary, modifier = Modifier.size(16.dp))
         }
     }
 }

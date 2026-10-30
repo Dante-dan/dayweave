@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Call
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,10 +38,10 @@ import app.dayweave.ui.theme.Type
 @Composable
 fun SourceIcon(segment: Segment, modifier: Modifier = Modifier) {
     val icon = when {
-        segment.source == SourceKind.PLAYBACK -> Icons.Rounded.PlayCircle
-        segment.source == SourceKind.CALL -> Icons.Rounded.Call
-        segment.device.contains("手机") -> Icons.Rounded.Mic
-        else -> Icons.Rounded.Headphones
+        segment.source == SourceKind.PLAYBACK -> Icons.Outlined.PlayCircle
+        segment.source == SourceKind.CALL -> Icons.Outlined.Call
+        segment.device.contains("手机") -> Icons.Outlined.MicNone
+        else -> Icons.Outlined.Headphones
     }
     Icon(icon, contentDescription = null, tint = Ink.Secondary, modifier = modifier.size(14.dp))
 }

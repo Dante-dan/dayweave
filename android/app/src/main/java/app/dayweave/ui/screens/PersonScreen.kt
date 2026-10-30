@@ -26,10 +26,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.MergeType
+import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MergeType
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -103,7 +103,7 @@ fun PersonScreen(id: String, nav: Navigator) {
     ) {
         item("bar") {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
+                RoundGlassButton(nav.back) { Icon(Icons.AutoMirrored.Outlined.ArrowBackIos, "返回", modifier = Modifier.size(18.dp).padding(start = 4.dp)) }
             }
         }
         item("hero") {
@@ -138,8 +138,8 @@ fun PersonScreen(id: String, nav: Navigator) {
                 )
                 if (!person.isOwner) {
                     Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Action(Icons.Rounded.Edit, if (person.named) "改名" else "这是谁？") { editing = true }
-                        Action(Icons.Rounded.MergeType, "和别人是同一个人") { merging = true }
+                        Action(Icons.Outlined.Edit, if (person.named) "改名" else "这是谁？") { editing = true }
+                        Action(Icons.Outlined.MergeType, "和别人是同一个人") { merging = true }
                     }
                     Text(
                         "名字和声纹只存在这台手机上。之后听到同样的声音，会自动认出是 ${person.name}。",
@@ -219,7 +219,7 @@ private fun NameEditor(person: Person, done: (String?) -> Unit) {
         Box(
             Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Ink.Primary).pressable({ done(text.takeIf { it.isNotBlank() }) }),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.Check, "保存", tint = Ink.OnPrimary, modifier = Modifier.size(20.dp)) }
+        ) { Icon(Icons.Outlined.Check, "保存", tint = Ink.OnPrimary, modifier = Modifier.size(20.dp)) }
     }
 }
 
