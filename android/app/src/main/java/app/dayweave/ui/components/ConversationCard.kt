@@ -81,6 +81,8 @@ fun ConversationCard(
             }
         }
 
+        segment.scene?.let { SceneChip(it) }
+
         AnimatedContent(
             targetState = segment.status,
             transitionSpec = { fadeIn() togetherWith fadeOut() },

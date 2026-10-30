@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asAndroidPath
@@ -72,19 +73,22 @@ fun Modifier.frosted(shape: Shape, elevation: Dp = 16.dp): Modifier {
 /**
  * 只画在形状外面的柔和阴影。系统阴影会透过半透明玻璃显示成一块灰色矩形，所以把形状内部裁掉。
  */
-fun Modifier.outerShadow(shape: Shape, elevation: Dp): Modifier = drawBehind {
-    if (elevation.value <= 0f) return@drawBehind
-    val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }.asAndroidPath()
+fun Modifier.outerShadow(shape: Shape, elevation: Dp): Modifier = drawWithCache {
+    // 路径和画笔只在尺寸变化时重建，滚动和动画时不再每帧分配。
+    val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }.asAndroidPath()
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.WHITE
         setShadowLayer(elevation.toPx() * 1.6f, 0f, elevation.toPx() * 0.5f, Glass.Shadow.copy(alpha = 0.16f).toArgb())
     }
-    drawIntoCanvas { canvas ->
-        val native = canvas.nativeCanvas
-        native.save()
-        native.clipOutPath(path)
-        native.drawPath(path, paint)
-        native.restore()
+    onDrawBehind {
+        if (elevation.value <= 0f) return@onDrawBehind
+        drawIntoCanvas { canvas ->
+            val native = canvas.nativeCanvas
+            native.save()
+            native.clipOutPath(path)
+            native.drawPath(path, paint)
+            native.restore()
+        }
     }
 }
 

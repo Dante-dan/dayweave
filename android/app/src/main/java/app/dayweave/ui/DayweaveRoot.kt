@@ -75,18 +75,29 @@ import app.dayweave.ui.screens.ConversationScreen
 import app.dayweave.ui.screens.DayScreen
 import app.dayweave.ui.screens.DigestScreen
 import app.dayweave.ui.screens.EnrollScreen
+import app.dayweave.ui.screens.PersonScreen
+import app.dayweave.ui.screens.ServiceScreen
 import app.dayweave.ui.screens.TimelineScreen
 import app.dayweave.ui.theme.Ink
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import java.time.LocalDate
 
-data class DeepLink(val tab: String? = null, val conversation: String? = null, val day: String? = null, val enroll: Boolean = false)
+data class DeepLink(
+    val tab: String? = null,
+    val conversation: String? = null,
+    val day: String? = null,
+    val enroll: Boolean = false,
+    val service: Boolean = false,
+)
 
-/** 由 Activity 提供、需要系统授权弹窗的动作。 */
+/** 由 Activity 提供、需要系统授权弹窗或系统页面的动作。 */
 interface Actions {
     fun toggleCapture()
     fun requestMicPermission(then: () -> Unit)
+    /** 选择服务账号 JSON 并导入；回调参数为错误说明，成功时为 null。 */
+    fun importServiceAccount(done: (String?) -> Unit)
+    fun openMediaAccess()
 }
 
 private sealed interface Route {
@@ -94,6 +105,8 @@ private sealed interface Route {
     data class Conversation(val id: String) : Route
     data class Day(val date: LocalDate) : Route
     data object Enroll : Route
+    data object Service : Route
+    data class Person(val id: String) : Route
 }
 
 enum class Tab(val outline: ImageVector, val filled: ImageVector, val label: String) {
@@ -107,6 +120,8 @@ class Navigator(
     val openConversation: (String) -> Unit,
     val openDay: (LocalDate) -> Unit,
     val openEnroll: () -> Unit,
+    val openService: () -> Unit,
+    val openPerson: (String) -> Unit,
     val openTab: (Tab) -> Unit,
     val back: () -> Unit,
 )
@@ -132,6 +147,17 @@ fun Modifier.sharedSegment(key: String): Modifier = composed {
     }
 }
 
+/**
+ * 页面进入的过渡动画是否已经结束。详情页先只画轻量的外框跟着卡片展开，
+ * 动画结束后再放入长列表，避免每一帧都重新测量整页气泡。
+ */
+@Composable
+fun rememberSettled(): Boolean {
+    val animated = LocalAnimated.current ?: return true
+    val transition = animated.transition
+    return !transition.isRunning && transition.currentState == androidx.compose.animation.EnterExitState.Visible
+}
+
 @Composable
 fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<DeepLink?>) {
     var stack by rememberSaveable(stateSaver = RouteSaver) { mutableStateOf(listOf<Route>(Route.Tabs)) }
@@ -141,6 +167,8 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
         openConversation = { stack = stack + Route.Conversation(it) },
         openDay = { stack = stack + Route.Day(it) },
         openEnroll = { stack = stack + Route.Enroll },
+        openService = { stack = stack + Route.Service },
+        openPerson = { stack = stack + Route.Person(it) },
         openTab = { tab = it },
         back = { if (stack.size > 1) stack = stack.dropLast(1) },
     )
@@ -154,6 +182,7 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
             l.day?.let { Route.Day(LocalDate.parse(it)) },
             l.conversation?.let { Route.Conversation(it) },
             if (l.enroll) Route.Enroll else null,
+            if (l.service) Route.Service else null,
         )
     }
     val haze = remember { HazeState() }
@@ -170,6 +199,10 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                     (slideInVertically(tween(460, easing = FastOutSlowInEasing)) { it / 5 } + fadeIn(tween(320))) togetherWith fadeOut(tween(220))
                                 initialState is Route.Enroll ->
                                     fadeIn(tween(300)) togetherWith (slideOutVertically(tween(380)) { it / 5 } + fadeOut(tween(260)))
+                                targetState is Route.Service || targetState is Route.Person ->
+                                    (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith fadeOut(tween(200))
+                                initialState is Route.Service || initialState is Route.Person ->
+                                    fadeIn(tween(300)) togetherWith (slideOutHorizontally(tween(360)) { it / 4 } + fadeOut(tween(240)))
                                 targetState is Route.Day && initialState is Route.Tabs ->
                                     (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith
                                         (fadeOut(tween(200)) + scaleOut(tween(300), targetScale = 0.96f))
@@ -188,6 +221,8 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                 is Route.Conversation -> ConversationScreen(r.id, nav)
                                 is Route.Day -> DayScreen(r.date, nav)
                                 Route.Enroll -> EnrollScreen(nav, actions)
+                                Route.Service -> ServiceScreen(nav, actions)
+                                is Route.Person -> PersonScreen(r.id, nav)
                             }
                         }
                     }
@@ -280,8 +315,10 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
             when (it) {
                 Route.Tabs -> "tabs"
                 Route.Enroll -> "enroll"
+                Route.Service -> "service"
                 is Route.Conversation -> "c:${it.id}"
                 is Route.Day -> "d:${it.date}"
+                is Route.Person -> "p:${it.id}"
             }
         }
     },
@@ -289,8 +326,10 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
         saved.map {
             when {
                 it == "enroll" -> Route.Enroll
+                it == "service" -> Route.Service
                 it.startsWith("c:") -> Route.Conversation(it.removePrefix("c:"))
                 it.startsWith("d:") -> Route.Day(LocalDate.parse(it.removePrefix("d:")))
+                it.startsWith("p:") -> Route.Person(it.removePrefix("p:"))
                 else -> Route.Tabs
             }
         }

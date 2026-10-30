@@ -115,7 +115,7 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                         ShimmerLines(4)
                     }
                     state is DigestState.Failed -> {
-                        Text(if (state.needsSetup) "AI 整理还没有开通" else state.message, style = Type.Title)
+                        Text(state.message, style = Type.Title)
                         Text("下面是这一天的全部对话原文。", style = Type.Caption)
                     }
                     else -> Text("这一天还没有整理", style = Type.Title)
@@ -152,7 +152,7 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
         }
         item("note") {
             Text(
-                digest?.let { "由 ${it.model} 根据文字档案整理 · 与原文分开保存，可随时重新生成" } ?: "",
+                digest?.let { "由 ${it.model.ifBlank { "AI" }} 根据文字档案整理 · 与原文分开保存，可随时重新生成" } ?: "",
                 style = Type.Micro,
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp),
             )

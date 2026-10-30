@@ -67,11 +67,7 @@ fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true, scaleTo: Fl
 /** 头像：主人带快拍渐变光环，其他人用纯色圆底和首字。 */
 @Composable
 fun Avatar(person: Person?, size: Dp, modifier: Modifier = Modifier, ring: Boolean = person?.isOwner == true) {
-    val label = when {
-        person == null -> "?"
-        person.isOwner -> "我"
-        else -> person.name.filter { it.isDigit() }.ifEmpty { person.name.take(1) }
-    }
+    val label = person?.initial ?: "?"
     val fill = when {
         person == null -> Ink.Tertiary
         person.isOwner -> Ink.Primary

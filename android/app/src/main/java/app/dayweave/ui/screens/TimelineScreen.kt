@@ -47,12 +47,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import app.dayweave.core.Listening
+import app.dayweave.core.SceneKind
 import app.dayweave.core.Segment
+import app.dayweave.ui.components.icon
+import app.dayweave.ui.components.minutes
+import app.dayweave.ui.components.tint
 import app.dayweave.core.SourceKind
 import app.dayweave.graph
 import app.dayweave.ui.Navigator
 import app.dayweave.ui.TabBarClearance
 import app.dayweave.ui.components.ConversationCard
+import app.dayweave.ui.components.PeopleRow
 import app.dayweave.ui.components.clock
 import app.dayweave.ui.components.dayLabel
 import app.dayweave.ui.components.glass
@@ -67,6 +77,7 @@ import app.dayweave.ui.theme.Type
 fun TimelineScreen(nav: Navigator) {
     val graph = LocalContext.current.graph
     val segments by graph.archive.segments.collectAsStateWithLifecycle()
+    val listening by graph.archive.listening.collectAsStateWithLifecycle()
     val people by graph.voice.people.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
 
@@ -76,7 +87,13 @@ fun TimelineScreen(nav: Navigator) {
             s.turns.any { it.text.contains(q, ignoreCase = true) } || s.speakerIds.any { people[it]?.name?.contains(q) == true }
         }
     }
-    val days = remember(filtered) { filtered.groupBy { localDate(it.startedAt) }.toSortedMap(compareByDescending { it }) }
+    val days = remember(filtered, listening, query) {
+        val spans = if (query.isBlank()) listening.map(Entry::Span) else emptyList()
+        (filtered.map(Entry::Talk) + spans)
+            .sortedByDescending { it.at }
+            .groupBy { localDate(it.at) }
+            .toSortedMap(compareByDescending { it })
+    }
 
     LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(bottom = TabBarClearance)) {
         item("title") {
@@ -84,6 +101,10 @@ fun TimelineScreen(nav: Navigator) {
                 Text("时间线", style = Type.Display)
                 Text("录下的每一段声音，和它说了什么", style = Type.Caption, modifier = Modifier.padding(top = 4.dp))
             }
+        }
+        val faces = people.values.filter { p -> p.isOwner || segments.any { s -> p.id in s.speakerIds } }
+        if (faces.size > 1) {
+            item("people") { PeopleRow(faces, { nav.openPerson(it.id) }, Modifier.padding(bottom = 14.dp)) }
         }
         item("search") { SearchField(query) { query = it } }
         if (days.isEmpty()) {
@@ -96,39 +117,62 @@ fun TimelineScreen(nav: Navigator) {
             }
         }
         days.forEach { (date, list) ->
+            val talks = list.filterIsInstance<Entry.Talk>().map { it.segment }
             item("day-$date") {
                 Row(Modifier.animateItem().padding(start = 20.dp, end = 20.dp, top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
                     Text(dayLabel(date), style = Type.Title)
                     Spacer(Modifier.width(8.dp))
-                    Text("${list.size} 段 · ${app.dayweave.ui.components.minutes(list.sumOf { it.durationMs })}", style = Type.Caption)
+                    Text("${talks.size} 段 · ${app.dayweave.ui.components.minutes(talks.sumOf { it.durationMs })}", style = Type.Caption)
                 }
             }
-            itemsIndexed(list, key = { _, s -> s.id }) { i, segment ->
+            itemsIndexed(list, key = { _, e -> e.key }) { i, entry ->
                 TimelineRow(
-                    segment = segment,
+                    at = entry.at,
+                    node = entry.node,
                     first = i == 0,
                     last = i == list.lastIndex,
                     modifier = Modifier.animateItem(),
                 ) {
-                    ConversationCard(
-                        segment = segment, people = people,
-                        onClick = { nav.openConversation(segment.id) },
-                        onRetry = { graph.pipeline.retry(segment.id) },
-                    )
+                    when (entry) {
+                        is Entry.Talk -> ConversationCard(
+                            segment = entry.segment, people = people,
+                            onClick = { nav.openConversation(entry.segment.id) },
+                            onRetry = { graph.pipeline.retry(entry.segment.id) },
+                        )
+                        is Entry.Span -> ListeningRow(entry.listening)
+                    }
                 }
             }
         }
     }
 }
 
+/** 时间线上的一项：一段对话，或一段听音乐、听播客、通话的时间。 */
+private sealed interface Entry {
+    val at: Long
+    val key: String
+    /** 节点颜色：对话用快拍渐变，场景用对应的粉彩。 */
+    val node: Color?
+
+    data class Talk(val segment: Segment) : Entry {
+        override val at get() = segment.startedAt
+        override val key get() = segment.id
+        override val node: Color? get() = if (segment.source == SourceKind.PLAYBACK) Color(0xFF6BB8F5) else null
+    }
+
+    data class Span(val listening: Listening) : Entry {
+        override val at get() = listening.startedAt
+        override val key get() = "l-${listening.id}"
+        override val node: Color get() = listening.scene.kind.tint
+    }
+}
+
 @Composable
-private fun TimelineRow(segment: Segment, first: Boolean, last: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
-    val playback = segment.source == SourceKind.PLAYBACK
+private fun TimelineRow(at: Long, node: Color?, first: Boolean, last: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
     Row(modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(start = 12.dp, end = 16.dp)) {
         Column(Modifier.width(46.dp).padding(top = 18.dp), horizontalAlignment = Alignment.End) {
-            Text(clock(segment.startedAt), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold))
+            Text(clock(at), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold))
         }
-        // 时间轴：麦克风是快拍渐变节点，播放声音是天蓝节点
         Canvas(Modifier.width(28.dp).fillMaxHeight()) {
             val x = size.width / 2
             val nodeY = 26.dp.toPx()
@@ -136,11 +180,37 @@ private fun TimelineRow(segment: Segment, first: Boolean, last: Boolean, modifie
             if (!first) drawLine(line, Offset(x, 0f), Offset(x, nodeY), 2.dp.toPx())
             if (!last) drawLine(line, Offset(x, nodeY), Offset(x, size.height), 2.dp.toPx())
             drawCircle(Color.White, 7.dp.toPx(), Offset(x, nodeY))
-            if (playback) drawCircle(Color(0xFF6BB8F5), 4.5.dp.toPx(), Offset(x, nodeY))
+            if (node != null) drawCircle(node, 4.5.dp.toPx(), Offset(x, nodeY))
             else drawCircle(Brush.linearGradient(Ink.Story, Offset(x - 5, nodeY - 5), Offset(x + 5, nodeY + 5)), 4.5.dp.toPx(), Offset(x, nodeY))
             drawCircle(Glass.Lavender, 7.dp.toPx(), Offset(x, nodeY), style = Stroke(1.dp.toPx()))
         }
         Box(Modifier.weight(1f).padding(vertical = 6.dp)) { content() }
+    }
+}
+
+/** 听音乐、播客、视频或通话的一段时间：轻薄的一行，不抢对话卡片的视线。 */
+@Composable
+private fun ListeningRow(l: Listening) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 8.dp).glass(RoundedCornerShape(18.dp), elevation = 0.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(30.dp).clip(CircleShape).background(l.scene.kind.tint), contentAlignment = Alignment.Center) {
+            Icon(l.scene.kind.icon, null, tint = Ink.Primary, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "[${l.scene.kind.label}]" + (l.scene.app?.let { " $it" } ?: ""),
+                style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold),
+            )
+            Text(
+                listOfNotNull(l.scene.title, "${clock(l.startedAt)}–${clock(l.endedAt)}", minutes(l.durationMs),
+                    if (l.scene.kind == SceneKind.CALL) "只记录你这一侧" else "未录制").joinToString(" · "),
+                style = Type.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

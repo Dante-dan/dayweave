@@ -21,10 +21,28 @@ private const val PERSON_THRESHOLD = 0.55f
 private const val MIN_EMBED_SAMPLES = SAMPLE_RATE * 3 / 2
 
 @Serializable
-private data class OwnerVoice(val embedding: List<Float>, val clips: Int, val enrolledAt: Long)
+private data class OwnerVoice(
+    val embedding: List<Float>,
+    val clips: Int,
+    val enrolledAt: Long,
+    /** 用户手动标成“我”的声纹，例如换了耳机、感冒时的声音。 */
+    val extra: List<List<Float>> = emptyList(),
+)
 
+/**
+ * 一个被认出的人。名字由用户标注；没标注时叫“说话人 n”。
+ * centroid 是自动归并的声纹均值；extra 是用户手动合并进来的其他声纹，同样参与匹配。
+ */
 @Serializable
-private data class KnownPerson(val id: String, val name: String, val colorIndex: Int, val centroid: List<Float>, val count: Int)
+private data class KnownPerson(
+    val id: String,
+    val name: String,
+    val colorIndex: Int,
+    val centroid: List<Float>,
+    val count: Int,
+    val named: Boolean = false,
+    val extra: List<List<Float>> = emptyList(),
+)
 
 /**
  * 手机端声纹：CAM++（中英通用）模型在本机提取声纹，声纹不离开手机。
@@ -43,7 +61,8 @@ class VoiceId(private val context: Context, root: File) {
         )
     }
 
-    private var owner: FloatArray? = readOwner()
+    private var ownerVoice: OwnerVoice? = readOwnerVoice()
+    private var owner: FloatArray? = ownerVoice?.embedding?.toFloatArray()
     private val _ownerEnrolled = MutableStateFlow(owner != null)
     val ownerEnrolled: StateFlow<Boolean> = _ownerEnrolled
 
@@ -52,8 +71,8 @@ class VoiceId(private val context: Context, root: File) {
     /** 所有识别出的人，主人固定存在。 */
     val people: StateFlow<Map<String, Person>> = _people
 
-    private fun readOwner(): FloatArray? = runCatching {
-        json.decodeFromString<OwnerVoice>(ownerFile.readText()).embedding.toFloatArray()
+    private fun readOwnerVoice(): OwnerVoice? = runCatching {
+        json.decodeFromString<OwnerVoice>(ownerFile.readText())
     }.getOrNull()
 
     private fun readPeople(): List<KnownPerson> = runCatching {
@@ -62,7 +81,7 @@ class VoiceId(private val context: Context, root: File) {
 
     private fun snapshot(): Map<String, Person> =
         mapOf(OWNER_ID to Person(OWNER_ID, "我", 0, isOwner = true)) +
-            known.associate { it.id to Person(it.id, it.name, it.colorIndex) }
+            known.associate { it.id to Person(it.id, it.name, it.colorIndex, named = it.named) }
 
     /** 提取一段音频的归一化声纹；音频太短时循环拼接。 */
     @Synchronized
@@ -88,7 +107,9 @@ class VoiceId(private val context: Context, root: File) {
         val mean = FloatArray(embeddings[0].size)
         embeddings.forEach { e -> e.indices.forEach { mean[it] += e[it] } }
         val result = normalize(mean)
-        ownerFile.writeText(json.encodeToString(OwnerVoice.serializer(), OwnerVoice(result.toList(), embeddings.size, System.currentTimeMillis())))
+        val voice = OwnerVoice(result.toList(), embeddings.size, System.currentTimeMillis(), ownerVoice?.extra.orEmpty())
+        ownerFile.writeText(json.encodeToString(OwnerVoice.serializer(), voice))
+        ownerVoice = voice
         owner = result
         _ownerEnrolled.value = true
         return true
@@ -97,20 +118,26 @@ class VoiceId(private val context: Context, root: File) {
     @Synchronized
     fun clearOwner() {
         ownerFile.delete()
+        ownerVoice = null
         owner = null
         _ownerEnrolled.value = false
     }
 
-    fun ownerScore(embedding: FloatArray): Float? = owner?.let { cosine(it, embedding) }
+    fun ownerScore(embedding: FloatArray): Float? = owner?.let { o ->
+        (listOf(o) + ownerVoice?.extra.orEmpty().map { it.toFloatArray() }).maxOf { cosine(it, embedding) }
+    }
 
-    /** 判断一段声纹是谁：先比主人，再比已知的匿名说话人，都不像就新建一个。 */
+    private fun KnownPerson.score(embedding: FloatArray) =
+        (listOf(centroid) + extra).maxOf { cosine(it.toFloatArray(), embedding) }
+
+    /** 判断一段声纹是谁：先比主人，再比已知的人（含手动合并进来的声纹），都不像就新建一个匿名说话人。 */
     @Synchronized
     fun resolve(embedding: FloatArray): Pair<String, Float?> {
         val score = ownerScore(embedding)
         if (score != null && score >= OWNER_THRESHOLD) return OWNER_ID to score
 
-        val best = known.withIndex().maxByOrNull { cosine(it.value.centroid.toFloatArray(), embedding) }
-        if (best != null && cosine(best.value.centroid.toFloatArray(), embedding) >= PERSON_THRESHOLD) {
+        val best = known.withIndex().maxByOrNull { it.value.score(embedding) }
+        if (best != null && best.value.score(embedding) >= PERSON_THRESHOLD) {
             val p = best.value
             val merged = FloatArray(embedding.size) { (p.centroid[it] * p.count + embedding[it]) / (p.count + 1) }
             known[best.index] = p.copy(centroid = normalize(merged).toList(), count = p.count + 1)
@@ -118,10 +145,42 @@ class VoiceId(private val context: Context, root: File) {
             return p.id to score
         }
 
-        val n = known.size + 1
+        val n = (known.mapNotNull { it.id.removePrefix("p").toIntOrNull() }.maxOrNull() ?: 0) + 1
         known += KnownPerson("p$n", "说话人 $n", n, embedding.toList(), 1)
         persist()
         return "p$n" to score
+    }
+
+    /** 给一个人起名字。之后识别到同样的声纹会自动显示这个名字。 */
+    @Synchronized
+    fun rename(id: String, name: String) {
+        val i = known.indexOfFirst { it.id == id }
+        if (i < 0 || name.isBlank()) return
+        known[i] = known[i].copy(name = name.trim(), named = true)
+        persist()
+    }
+
+    /**
+     * 把 from 合并进 into（“这两个是同一个人”）：from 的声纹成为 into 的额外声纹，之后两种声音都认作 into。
+     * into 为主人时，声纹加入主人的额外声纹。调用方负责把档案里的说话人一并改掉。
+     */
+    @Synchronized
+    fun merge(from: String, into: String) {
+        if (from == into || from == OWNER_ID) return
+        val source = known.firstOrNull { it.id == from } ?: return
+        val voices = listOf(source.centroid) + source.extra
+        if (into == OWNER_ID) {
+            val o = ownerVoice ?: return
+            val updated = o.copy(extra = o.extra + voices)
+            ownerFile.writeText(json.encodeToString(OwnerVoice.serializer(), updated))
+            ownerVoice = updated
+        } else {
+            val i = known.indexOfFirst { it.id == into }
+            if (i < 0) return
+            known[i] = known[i].copy(extra = known[i].extra + voices, count = known[i].count + source.count)
+        }
+        known.removeAll { it.id == from }
+        persist()
     }
 
     private fun persist() {

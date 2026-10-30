@@ -78,14 +78,14 @@ import kotlinx.coroutines.withContext
 
 private data class Prompt(val lang: String, val text: String)
 
-/** 中文、英文、中英混说各有覆盖，让声纹不偏向某一种语言。 */
+/** 一些温柔的句子：中文、英文、中英混说各有覆盖，让声纹不偏向某一种语言，读起来也是一种小小的享受。 */
 private val PROMPTS = listOf(
-    Prompt("中文", "今天天气不错，我打算下午去公园散散步，顺便买一杯咖啡。"),
-    Prompt("English", "I usually start my morning with a short walk and a cup of coffee."),
-    Prompt("中文", "这周的重点是把采集流程跑通，然后整理一份测试报告发给大家。"),
-    Prompt("English", "Let's schedule a quick sync tomorrow to review the latest design."),
-    Prompt("中英", "我们下周 review 一下这个 feature，看看 roadmap 要不要调整。"),
-    Prompt("中文", "请在周五下午三点提醒我，和产品团队开一个半小时的会。"),
+    Prompt("中文", "我想把日子过成一首慢慢写的诗，不急着押韵，只认真写好每一行。"),
+    Prompt("English", "Every morning is a quiet invitation to begin again, a little braver than yesterday."),
+    Prompt("中文", "小时候外婆常说，路是走出来的，不是想出来的。后来我才慢慢懂了。"),
+    Prompt("English", "The stars never rush, and yet they always arrive exactly where they need to be."),
+    Prompt("中英", "那天在海边，我对自己说 just keep going，风会把答案带过来。"),
+    Prompt("中文", "愿你走过的每一段路都有光，遇见的每一个人都温柔。"),
 )
 private const val MIN_CLIP_MS = 2_500L
 private const val MAX_CLIP_MS = 15_000L
@@ -235,7 +235,7 @@ private fun Intro(captureRunning: Boolean) {
         Text("让拾日认出你", style = Type.Display, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         Text(
-            "接下来会出现 6 段文字，包括中文和英文。\n按下按钮，用平常说话的语气读出来，读完再按一次。" +
+            "接下来是 6 段温柔的短句，有中文也有英文。\n按下按钮，用平常说话的语气读出来，读完再按一次。" +
                 if (captureRunning) "\n\n录入时需要先暂停记录。" else "",
             style = Type.Body.copy(color = Ink.Secondary),
             textAlign = TextAlign.Center,

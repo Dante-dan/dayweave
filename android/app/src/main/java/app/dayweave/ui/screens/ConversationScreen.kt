@@ -59,6 +59,9 @@ import app.dayweave.ui.components.dayLabel
 import app.dayweave.ui.components.duration
 import app.dayweave.ui.components.localDate
 import app.dayweave.ui.components.pressable
+import app.dayweave.ui.components.SceneChip
+import app.dayweave.ui.components.ShimmerLines
+import app.dayweave.ui.rememberSettled
 import app.dayweave.ui.sharedSegment
 import app.dayweave.ui.theme.Glass
 import app.dayweave.ui.theme.Ink
@@ -97,6 +100,11 @@ fun ConversationScreen(id: String, nav: Navigator) {
             return@Column
         }
 
+        // 展开动画进行时只画占位，动画结束再放入整段对话，展开会更跟手。
+        if (!rememberSettled()) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)) { ShimmerLines(3) }
+            return@Column
+        }
         val participants = segment.speakerIds.map { people[it] }
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -107,17 +115,35 @@ fun ConversationScreen(id: String, nav: Navigator) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(18.dp),
-                    modifier = Modifier.padding(bottom = 18.dp),
+                    modifier = Modifier.padding(bottom = if (segment.scene != null) 10.dp else 18.dp),
                 ) {
                     items(participants) { p ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Avatar(p, 58.dp, ring = p?.isOwner == true)
-                            Text(p?.name ?: "未识别", style = Type.Caption.copy(color = Ink.Primary), modifier = Modifier.padding(top = 6.dp))
+                        Column(
+                            Modifier.pressable({ p?.let { nav.openPerson(it.id) } }, scaleTo = 0.9f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Avatar(p, 58.dp, ring = p?.isOwner == true || p?.named == false)
+                            Text(
+                                when {
+                                    p == null -> "未识别"
+                                    p.isOwner || p.named -> p.name
+                                    else -> "${p.name} · 标注"
+                                },
+                                style = Type.Caption.copy(color = if (p != null && !p.isOwner && !p.named) Ink.Pink else Ink.Primary),
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
                         }
                     }
                 }
             }
-            itemsIndexed(segment.turns) { index, turn ->
+            segment.scene?.let { scene ->
+                item("scene") {
+                    Box(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
+                        SceneChip(scene, prefix = "这段对话发生在${scene.kind.doing.removeSuffix("时")}")
+                    }
+                }
+            }
+            itemsIndexed(segment.turns, key = { i, t -> "$i-${t.startMs}" }) { index, turn ->
                 val previous = segment.turns.getOrNull(index - 1)
                 Bubble(
                     turn = turn,
@@ -133,6 +159,7 @@ fun ConversationScreen(id: String, nav: Navigator) {
                     buildString {
                         val langs = segment.languages.map { if (it.startsWith("cmn")) "中文" else if (it.startsWith("en")) "English" else it }
                         if (langs.isNotEmpty()) append(langs.joinToString(" · ")).append("\n")
+                        if (segment.speechMs > 0) append("有效人声 ${duration(segment.speechMs)}，静音与环境音未上传\n")
                         append("音频已在转写后删除，只保留文字")
                     },
                     style = Type.Micro,
@@ -167,8 +194,8 @@ private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boo
     val mine = person?.isOwner == true
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(120L + (index.coerceAtMost(12) * 45L))
-        appear.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
+        delay(index.coerceAtMost(12) * 40L)
+        appear.animateTo(1f, tween(340, easing = FastOutSlowInEasing))
     }
     Column(
         Modifier

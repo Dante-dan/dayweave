@@ -2,12 +2,19 @@ package app.dayweave
 
 import android.app.Application
 import android.content.Context
+import app.dayweave.ai.Agent
+import app.dayweave.ai.CloudDigest
 import app.dayweave.ai.DigestEngine
-import app.dayweave.ai.GeminiClient
+import app.dayweave.ai.DigestModel
+import app.dayweave.ai.digestModel
+import app.dayweave.capture.SpeechDetector
+import app.dayweave.cloud.CloudApi
 import app.dayweave.core.ArchiveStore
+import app.dayweave.core.ServiceMode
 import app.dayweave.core.Settings
 import app.dayweave.transcribe.ChirpClient
 import app.dayweave.transcribe.GoogleAuth
+import app.dayweave.transcribe.SpeechEngine
 import app.dayweave.transcribe.TranscriptionPipeline
 import app.dayweave.voice.VoiceId
 import kotlinx.coroutines.CoroutineScope
@@ -15,27 +22,52 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
 
-/** 手动组装的依赖。个人规模的 demo 不需要 DI 框架。 */
+/** 手动组装的依赖。个人规模的 App 不需要 DI 框架。 */
 class AppGraph(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val settings = Settings(context)
     val archive = ArchiveStore(context.filesDir)
     val voice = VoiceId(context, context.filesDir)
     val auth = GoogleAuth(File(context.filesDir, "google-sa.json"))
+    val cloud = CloudApi(settings, scope)
+    private val chirp = ChirpClient(auth)
+
+    /** 按当前的服务方式选择转写：拾日云，或用户自己的 Google Cloud。 */
+    val speech: SpeechEngine get() = if (settings.mode.value == ServiceMode.CLOUD) cloud else chirp
+
+    val digestModel: DigestModel
+        get() = if (settings.mode.value == ServiceMode.CLOUD) CloudDigest(cloud) else digestModel(settings.ai.value, auth)
+
+    val agent = Agent(
+        context = context,
+        model = { digestModel },
+        people = { voice.people.value },
+        root = context.filesDir,
+        scope = scope,
+    )
+
     val pipeline = TranscriptionPipeline(
         archive = archive,
-        chirp = ChirpClient(auth),
+        onDone = agent::consider,
+        engine = { speech },
+        detector = SpeechDetector(context),
         voice = voice,
         audioDir = File(context.cacheDir, "segments").apply { mkdirs() },
         scope = scope,
     )
     val digest = DigestEngine(
         archive = archive,
-        gemini = GeminiClient(auth),
+        model = { digestModel },
         people = { voice.people.value },
         root = context.filesDir,
         scope = scope,
     )
+}
+
+/** 合并两个说话人：声纹并过去，档案里的发言也改过去。 */
+fun AppGraph.mergePeople(from: String, into: String) {
+    voice.merge(from, into)
+    archive.reassignSpeaker(from, into)
 }
 
 class DayweaveApp : Application() {

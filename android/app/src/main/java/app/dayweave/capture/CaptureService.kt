@@ -1,22 +1,23 @@
 package app.dayweave.capture
 
-import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
+import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import androidx.core.content.IntentCompat
+import android.service.quicksettings.TileService
 import app.dayweave.MainActivity
+import app.dayweave.R
+import app.dayweave.core.Scene
 import app.dayweave.core.SourceKind
 import app.dayweave.graph
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,63 +27,74 @@ import java.io.File
 
 data class CaptureState(
     val running: Boolean = false,
+    val paused: Boolean = false,
     val startedAt: Long = 0,
     val micName: String? = null,
     val micReady: Boolean = false,
     val micLevel: Double = -90.0,
     val micSpeaking: Boolean = false,
-    val playbackOn: Boolean = false,
-    val playbackLevel: Double = -90.0,
-    val playbackSpeaking: Boolean = false,
+    /** 耳机麦克风正让给别的声音。 */
+    val yielded: Boolean = false,
+    /** 系统把麦克风先给了别的 App。 */
+    val silenced: Boolean = false,
+    val scene: Scene? = null,
     val notice: String? = null,
-)
+) {
+    val listening get() = running && !paused
+}
 
-/** 全天采集前台服务。片段结束后交给转写流水线，自身不做转写。 */
+/**
+ * 全天采集前台服务。片段结束后交给转写流水线，自身不做转写。
+ * 通知栏常驻一条低打扰的通知，带“暂停 / 继续 / 结束”，App 可以一直待在后台。
+ */
 class CaptureService : Service() {
 
     companion object {
         private const val ACTION_START = "start"
         private const val ACTION_STOP = "stop"
-        private const val EXTRA_PROJECTION = "projection"
+        private const val ACTION_PAUSE = "pause"
+        private const val ACTION_RESUME = "resume"
         private const val CHANNEL_ID = "capture"
         private const val NOTIFICATION_ID = 1
 
         private val _state = MutableStateFlow(CaptureState())
         val state: StateFlow<CaptureState> = _state
 
-        /** projectionData 为 null 时只采集麦克风。 */
-        fun start(context: Context, projectionData: Intent?) {
-            val intent = Intent(context, CaptureService::class.java).setAction(ACTION_START)
-            projectionData?.let { intent.putExtra(EXTRA_PROJECTION, it) }
-            context.startForegroundService(intent)
+        fun start(context: Context) {
+            context.startForegroundService(Intent(context, CaptureService::class.java).setAction(ACTION_START))
         }
 
-        fun stop(context: Context) {
-            context.startService(Intent(context, CaptureService::class.java).setAction(ACTION_STOP))
+        fun stop(context: Context) = send(context, ACTION_STOP)
+        fun pause(context: Context) = send(context, ACTION_PAUSE)
+        fun resume(context: Context) = send(context, ACTION_RESUME)
+
+        private fun send(context: Context, action: String) {
+            if (_state.value.running) context.startService(Intent(context, CaptureService::class.java).setAction(action))
         }
     }
 
     private var mic: MicInput? = null
-    private var playback: PlaybackInput? = null
-    private var projection: MediaProjection? = null
+    private var scene: AudioScene? = null
+    private var detector: SpeechDetector? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val main = Handler(Looper.getMainLooper())
+    private var shownNotification = ""
 
     private val ticker = object : Runnable {
         override fun run() {
             val m = mic
-            val p = playback
             _state.update {
                 it.copy(
                     micReady = m?.ready == true,
                     micLevel = m?.levelDb ?: -90.0,
-                    micSpeaking = m?.let { input -> input.ready && input.levelDb > -45 } == true,
+                    micSpeaking = m?.let { input -> input.ready && input.speaking } == true,
                     micName = m?.routedName ?: it.micName,
-                    playbackOn = p?.ready == true,
-                    playbackLevel = p?.levelDb ?: -90.0,
-                    playbackSpeaking = p?.let { input -> input.ready && input.levelDb > -50 } == true,
+                    yielded = m?.yielded == true,
+                    silenced = m?.silenced == true,
+                    scene = scene?.current?.value,
                 )
             }
+            refreshNotification()
             if (_state.value.running) main.postDelayed(this, 80)
         }
     }
@@ -92,16 +104,19 @@ class CaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "正在记录", NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(CHANNEL_ID, "正在记录", NotificationManager.IMPORTANCE_LOW).apply {
+                setShowBadge(false)
+                description = "记录进行中时常驻，可在这里暂停或结束"
+            },
         )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> if (!_state.value.running) {
-                start(intent.let { IntentCompat.getParcelableExtra(it, EXTRA_PROJECTION, Intent::class.java) })
-            }
+            ACTION_START -> if (!_state.value.running) start()
             ACTION_STOP -> stopCapture()
+            ACTION_PAUSE -> pauseCapture()
+            ACTION_RESUME -> resumeCapture()
         }
         return START_NOT_STICKY
     }
@@ -111,71 +126,125 @@ class CaptureService : Service() {
         super.onDestroy()
     }
 
-    private fun start(projectionData: Intent?) {
-        val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
-            (if (projectionData != null) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION else 0)
-        startForeground(NOTIFICATION_ID, notification(), type)
-
+    private fun start() {
+        startForeground(NOTIFICATION_ID, notification(CaptureState(running = true)), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         val graph = applicationContext.graph
         val selection = graph.settings.input.value ?: listInputs(this).firstOrNull()?.selection
         if (selection == null) {
             _state.value = CaptureState(notice = "没有可用的麦克风")
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
         }
-        val dir = File(cacheDir, "segments").apply { mkdirs() }
         wakeLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dayweave:capture")
             .apply { acquire(24 * 60 * 60_000L) }
-
+        detector = SpeechDetector(this)
+        scene = AudioScene(this, graph.archive).also { it.start() }
         _state.value = CaptureState(running = true, startedAt = System.currentTimeMillis(), micName = selection.name)
-        mic = MicInput(this, selection, segmenter(SourceKind.MIC, dir) { mic?.routedName ?: selection.name }) { notice ->
-            _state.update { it.copy(notice = notice) }
-        }.also { it.start() }
-
-        if (projectionData != null) startPlayback(projectionData, dir)
+        startMic()
         main.post(ticker)
+        requestTileUpdate()
     }
 
-    private fun startPlayback(data: Intent, dir: File) {
-        val p = getSystemService(MediaProjectionManager::class.java).getMediaProjection(Activity.RESULT_OK, data) ?: return
-        p.registerCallback(object : MediaProjection.Callback() {
-            override fun onStop() {
-                playback?.stop()
-                playback = null
-                _state.update { it.copy(playbackOn = false, notice = "已停止采集播放声音") }
-            }
-        }, main)
-        projection = p
-        playback = PlaybackInput(p, segmenter(SourceKind.PLAYBACK, dir) { "手机播放" }).also { it.start() }
+    private fun startMic() {
+        val graph = applicationContext.graph
+        val selection = graph.settings.input.value ?: listInputs(this).firstOrNull()?.selection ?: return
+        val dir = File(cacheDir, "segments").apply { mkdirs() }
+        val s = scene ?: return
+        lateinit var input: MicInput
+        val segmenter = Segmenter(
+            source = SourceKind.MIC,
+            dir = dir,
+            detector = detector ?: return,
+            device = { input.routedName },
+            scene = { s.current.value },
+        ) { segment, file -> graph.pipeline.submit(segment, file) }
+        input = MicInput(this, selection, segmenter, s) { notice -> _state.update { it.copy(notice = notice) } }
+        mic = input.also { it.start() }
     }
 
-    private fun segmenter(source: SourceKind, dir: File, device: () -> String) =
-        Segmenter(source, dir, device) { segment, file -> applicationContext.graph.pipeline.submit(segment, file) }
+    private fun pauseCapture() {
+        if (!_state.value.running || _state.value.paused) return
+        mic?.stop()
+        mic = null
+        _state.update { it.copy(paused = true, micReady = false, micLevel = -90.0, micSpeaking = false, notice = null) }
+        refreshNotification()
+        requestTileUpdate()
+    }
+
+    private fun resumeCapture() {
+        if (!_state.value.running || !_state.value.paused) return
+        _state.update { it.copy(paused = false) }
+        startMic()
+        refreshNotification()
+        requestTileUpdate()
+    }
 
     private fun stopCapture() {
         if (!_state.value.running) return
         main.removeCallbacks(ticker)
         mic?.stop()
-        playback?.stop()
-        projection?.stop()
         mic = null
-        playback = null
-        projection = null
+        scene?.stop()
+        scene = null
+        detector?.release()
+        detector = null
         wakeLock?.takeIf { it.isHeld }?.release()
         _state.value = CaptureState()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+        requestTileUpdate()
     }
 
-    private fun notification(): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+    private fun requestTileUpdate() {
+        TileService.requestListeningState(this, ComponentName(this, CaptureTile::class.java))
+    }
+
+    /** 只在文字变化时更新通知，避免 80 ms 一次地刷新。 */
+    private fun refreshNotification() {
+        val s = _state.value
+        if (!s.running) return
+        val key = "${s.paused}|${s.yielded}|${s.silenced}|${s.scene?.label}|${s.micName}|${s.micReady}"
+        if (key == shownNotification) return
+        shownNotification = key
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(s))
+    }
+
+    private fun action(action: String, label: String, icon: Int): Notification.Action {
+        val pi = PendingIntent.getService(this, action.hashCode(), Intent(this, CaptureService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE)
+        return Notification.Action.Builder(Icon.createWithResource(this, icon), label, pi).build()
+    }
+
+    private fun notification(s: CaptureState): Notification {
+        val open = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).putExtra("tab", "capture").addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val title = when {
+            s.paused -> "拾日已暂停"
+            s.silenced -> "拾日在旁听 · 麦克风被其他 App 占用"
+            else -> "拾日正在安静地聆听"
+        }
+        val text = when {
+            s.paused -> "轻触“继续”恢复记录"
+            s.scene != null && s.yielded -> "${s.scene.label} · 已把耳机让出，用手机麦克风"
+            s.scene != null -> "${s.scene.label} · 只记录人声，不录播放的声音"
+            else -> "${s.micName ?: "麦克风"} · 只转写人声，文字存好即删除音频"
+        }
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("拾日正在记录")
-            .setContentText("录音只用于转写，文字保存后即删除音频")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(R.drawable.ic_stat_listen)
             .setContentIntent(open)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(if (s.paused) action(ACTION_RESUME, "继续", R.drawable.ic_stat_listen) else action(ACTION_PAUSE, "暂停", R.drawable.ic_stat_pause))
+            .addAction(action(ACTION_STOP, "结束", R.drawable.ic_stat_stop))
             .build()
     }
 }

@@ -1,13 +1,13 @@
 package app.dayweave.capture
 
 import app.dayweave.core.SAMPLE_RATE
+import app.dayweave.core.Scene
 import app.dayweave.core.Segment
 import app.dayweave.core.SourceKind
 import app.dayweave.core.WavWriter
 import java.io.File
 import java.util.UUID
 import kotlin.math.log10
-import kotlin.math.max
 import kotlin.math.sqrt
 
 const val FRAME_SAMPLES = SAMPLE_RATE / 10 // 100 ms
@@ -17,18 +17,21 @@ private const val START_FRAMES = 3 // 连续 300 ms 人声才开段
 private const val END_SILENCE_MS = 2_500L
 private const val MAX_SEGMENT_MS = 15 * 60_000L
 private const val MIN_SPEECH_MS = 800L
+/** 低于它肯定没人说话，跳过模型判断。 */
+private const val SILENT_DB = -65.0
 
 /**
- * 轻量人声检测与分段：按停顿结束片段，持续讲话时最长 15 分钟切一段。
- * 噪声底自适应：遇到更安静的帧快速下调，持续较响时缓慢上调，避免把稳定的环境噪声当成人声。
+ * 人声检测与分段：电平先粗筛，再由本地 VAD 模型确认是不是人声，所以环境音、音乐不会开段。
+ * 按停顿结束片段，持续讲话时最长 15 分钟切一段。
  */
 class Segmenter(
     private val source: SourceKind,
     private val dir: File,
+    private val detector: SpeechDetector,
     private val device: () -> String,
+    private val scene: () -> Scene?,
     private val onSegment: (Segment, File) -> Unit,
 ) {
-    private var noiseFloor = -60.0
     private val preRoll = ArrayDeque<ShortArray>()
     private var speechRun = 0
 
@@ -37,18 +40,22 @@ class Segmenter(
     private var startedAt = 0L
     private var lastSpeechAt = 0L
     private var speechMs = 0L
+    private var openScene: Scene? = null
 
     /** 最近一帧电平，供界面显示。 */
     @Volatile var levelDb = -90.0
         private set
 
-    val active get() = writer != null
+    /** 最近一帧是否判定为人声。 */
+    @Volatile var speaking = false
+        private set
 
     fun accept(frame: ShortArray, n: Int, now: Long) {
         val db = dbfs(frame, n)
         levelDb = db
-        noiseFloor = if (db < noiseFloor) noiseFloor * 0.7 + db * 0.3 else (noiseFloor + 0.05).coerceAtMost(-30.0)
-        val speech = db > max(noiseFloor + 10, -58.0)
+        val voice = detector.isSpeech(frame, n)
+        val speech = voice && db > SILENT_DB
+        speaking = speech
         val copy = frame.copyOf(n)
 
         val w = writer
@@ -74,11 +81,14 @@ class Segmenter(
         }
     }
 
-    /** 停止采集时收尾当前片段。 */
+    /** 停止或暂停采集时收尾当前片段。 */
     fun flush() {
         if (writer != null) close()
         preRoll.clear()
         speechRun = 0
+        speaking = false
+        levelDb = -90.0
+        detector.reset()
     }
 
     private fun open(at: Long, now: Long, withPreRoll: Boolean) {
@@ -90,6 +100,7 @@ class Segmenter(
         startedAt = at
         lastSpeechAt = now
         speechMs = if (withPreRoll) START_FRAMES * FRAME_MS else 0
+        openScene = scene()
     }
 
     private fun close() {
@@ -102,7 +113,10 @@ class Segmenter(
             return
         }
         val endedAt = startedAt + w.samples * 1000 / SAMPLE_RATE
-        onSegment(Segment(id = segmentId, startedAt = startedAt, endedAt = endedAt, source = source, device = device()), w.file)
+        onSegment(
+            Segment(id = segmentId, startedAt = startedAt, endedAt = endedAt, source = source, device = device(), scene = openScene ?: scene()),
+            w.file,
+        )
     }
 }
 

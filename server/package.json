@@ -1,0 +1,10 @@
+{
+  "name": "dayweave-cloud",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.mjs",
+    "admin": "node --env-file-if-exists=.env src/admin.mjs"
+  }
+}

@@ -64,7 +64,9 @@ import app.dayweave.graph
 import app.dayweave.ui.Navigator
 import app.dayweave.ui.Tab
 import app.dayweave.ui.TabBarClearance
+import app.dayweave.ai.perform
 import app.dayweave.ui.components.AvatarStack
+import app.dayweave.ui.components.SuggestionCard
 import app.dayweave.ui.components.ShimmerLines
 import app.dayweave.ui.components.glass
 import app.dayweave.ui.components.localDate
@@ -85,6 +87,9 @@ fun DigestScreen(nav: Navigator) {
     val people by graph.voice.people.collectAsStateWithLifecycle()
     val digests by graph.digest.digests.collectAsStateWithLifecycle()
     val states by graph.digest.states.collectAsStateWithLifecycle()
+    val suggestions by graph.agent.suggestions.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val open = remember(suggestions) { suggestions.filter { it.status == "new" && (it.at == null || it.at > System.currentTimeMillis()) }.take(5) }
     val days = remember(segments) { segments.groupBy { localDate(it.startedAt) }.toSortedMap(compareByDescending { it }) }
 
     LaunchedEffect(segments) { graph.digest.refresh() }
@@ -95,6 +100,27 @@ fun DigestScreen(nav: Navigator) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item("header") { Header(nav) }
+        if (open.isNotEmpty()) {
+            item("agent-title") {
+                Row(Modifier.padding(start = 22.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Sparkle("拾日为你留意")
+                }
+            }
+            items(open, key = { "s-${it.id}" }) { s ->
+                SuggestionCard(
+                    s = s,
+                    onAction = { action ->
+                        when (action) {
+                            "dismiss" -> graph.agent.setStatus(s.id, "dismissed")
+                            "done" -> graph.agent.setStatus(s.id, "done")
+                            else -> if (perform(context, s, action)) graph.agent.setStatus(s.id, "done")
+                        }
+                    },
+                    onSource = { nav.openConversation(s.segmentId) },
+                    modifier = Modifier.animateItem().padding(horizontal = 16.dp),
+                )
+            }
+        }
         if (days.isEmpty()) item("empty") { EmptyDigest(nav) }
         items(days.entries.toList(), key = { it.key.toString() }) { (date, list) ->
             DayCard(
@@ -202,9 +228,9 @@ private fun DayCard(
                     ShimmerLines(3)
                 }
                 s is DigestState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (s.needsSetup) "AI 整理还没有开通" else s.message, style = Type.Headline)
+                    Text(s.message, style = Type.Headline)
                     Text(
-                        if (s.needsSetup) "在 Google Cloud 开通 Vertex AI 后，这里会出现每日总结。转写内容不受影响。"
+                        if (s.needsSetup) "在“采集 → 服务”里设置好之后，这里会出现每日总结。转写内容不受影响。"
                         else "稍后会自动重试，也可以进入这一天手动重新整理。",
                         style = Type.Caption,
                     )

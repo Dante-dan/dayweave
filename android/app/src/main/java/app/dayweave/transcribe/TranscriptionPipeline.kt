@@ -1,6 +1,8 @@
 package app.dayweave.transcribe
 
 import android.util.Log
+import app.dayweave.capture.SpeechDetector
+import app.dayweave.capture.SpeechOnly
 import app.dayweave.core.ArchiveStore
 import app.dayweave.core.SAMPLE_RATE
 import app.dayweave.core.Segment
@@ -22,14 +24,20 @@ private const val CHUNK_MAX = SAMPLE_RATE * 55 // 同步识别单次上限 60 �
 private const val CHUNK_SEARCH = SAMPLE_RATE * 15 // 在最后 15 秒里找最安静处切开
 private const val FRAME = SAMPLE_RATE / 10
 private const val TURN_GAP_MS = 1_200L
+/** 去掉静音和环境音后不足这么长，就不值得送去转写。 */
+private const val MIN_SPEECH_SAMPLES = SAMPLE_RATE / 2
 
 /**
- * 第一步“忠实记录”的后半段：临时音频 → Chirp 3 转写 → 声纹归属 → 文字档案 → 删除音频。
+ * 第一步“忠实记录”的后半段：临时音频 → 本地人声检测去掉静音和环境音 → 转写 → 声纹归属 → 文字档案 → 删除音频。
+ * 只有人声部分会上传，这部分时长就是“有效转录时长”。
  * 片段按顺序处理；网络失败保持待转写并稍后重试，文字可靠保存后才删除音频。
  */
 class TranscriptionPipeline(
     private val archive: ArchiveStore,
-    private val chirp: ChirpClient,
+    private val engine: () -> SpeechEngine,
+    /** 一段对话转写完成，交给助理看看有没有该主动提醒的事。 */
+    private val onDone: (Segment) -> Unit,
+    private val detector: SpeechDetector,
     private val voice: VoiceId,
     private val audioDir: File,
     private val scope: CoroutineScope,
@@ -66,25 +74,42 @@ class TranscriptionPipeline(
             archive.save(segment.copy(status = SegmentStatus.FAILED, error = "临时音频已不存在，无法转写"))
             return
         }
-        if (!chirp.available) {
-            archive.save(segment.copy(status = SegmentStatus.FAILED, error = "还没有配置转写凭证"))
+        val speech = engine()
+        speech.problem?.let {
+            archive.save(segment.copy(status = SegmentStatus.FAILED, error = it))
             return
         }
         archive.save(segment.copy(status = SegmentStatus.TRANSCRIBING, error = null))
         try {
-            val pcm = readPcm(file)
+            val raw = readPcm(file)
+            val voiced = synchronized(detector) { SpeechOnly.of(raw, detector.speechRegions(raw)) }
+            if (voiced.pcm.size < MIN_SPEECH_SAMPLES) {
+                // 只有环境音，不转写、不计费、不建立档案。
+                Log.i(TAG, "segment $id has no speech, dropped locally")
+                archive.delete(id)
+                file.delete()
+                return
+            }
+            val pcm = voiced.pcm
             val turns = mutableListOf<Turn>()
             val languages = mutableSetOf<String>()
             for ((from, to) in chunks(pcm)) {
-                val recognition = withRetry { chirp.recognize(pcm, from, to) }
+                val recognition = withRetry { speech.recognize(pcm, from, to) }
                 languages += recognition.languages
-                turns += attribute(pcm, from, recognition.words)
+                // Chirp 偶尔在音频结尾之后“补”出一两个字（例如静音时编出“喂”），时间超出音频的词直接丢掉。
+                val chunkMs = (to - from) * 1000L / SAMPLE_RATE
+                turns += attribute(pcm, from, recognition.words.filter { it.startMs < chunkMs }, voiced::toOriginalMs)
             }
             if (turns.isEmpty()) {
                 // 没有可识别的语音（例如环境噪声），不建立档案。
                 archive.delete(id)
             } else {
-                archive.save(segment.copy(status = SegmentStatus.DONE, turns = mergeTurns(turns), languages = languages.toList()))
+                val done = segment.copy(
+                    status = SegmentStatus.DONE, turns = mergeTurns(turns), languages = languages.toList(),
+                    speechMs = voiced.durationMs, error = null,
+                )
+                archive.save(done)
+                onDone(done)
             }
             file.delete()
         } catch (e: IOException) {
@@ -94,6 +119,14 @@ class TranscriptionPipeline(
                 delay(60_000)
                 queue.send(id)
             }
+        } catch (e: HttpException) {
+            Log.e(TAG, "transcribe $id failed", e)
+            val message = when (e.code) {
+                402 -> "拾日云余额不足，充值后点重试"
+                401, 403 -> "转写服务拒绝了请求，请检查密钥或权限"
+                else -> "转写失败（${e.code}）"
+            }
+            archive.save(segment.copy(status = SegmentStatus.FAILED, error = message))
         } catch (e: Exception) {
             Log.e(TAG, "transcribe $id failed", e)
             archive.save(segment.copy(status = SegmentStatus.FAILED, error = e.message ?: e.javaClass.simpleName))
@@ -145,7 +178,7 @@ class TranscriptionPipeline(
      * 把同一块里同一个说话人标签的音频拼起来提取声纹，判断是主人还是匿名说话人。
      * Chirp 的标签只在单次请求内有效，声纹让不同块、不同片段之间的同一个人保持一致。
      */
-    private fun attribute(pcm: ShortArray, chunkStart: Int, words: List<Word>): List<Turn> {
+    private fun attribute(pcm: ShortArray, chunkStart: Int, words: List<Word>, toOriginalMs: (Long) -> Long): List<Turn> {
         if (words.isEmpty()) return emptyList()
         val baseMs = chunkStart * 1000L / SAMPLE_RATE
         val identities = words.groupBy { it.label }.mapValues { (_, labelWords) ->
@@ -161,8 +194,9 @@ class TranscriptionPipeline(
         var current: Turn? = null
         for (w in words) {
             val (speaker, score) = identities.getValue(w.label)
-            val start = baseMs + w.startMs
-            val end = baseMs + w.endMs
+            // 声纹用紧凑音频提取；时间换回原始片段，和真实时钟对得上。
+            val start = toOriginalMs(baseMs + w.startMs)
+            val end = toOriginalMs(baseMs + w.endMs)
             val c = current
             current = if (c != null && c.speakerId == speaker && start - c.endMs <= TURN_GAP_MS) {
                 c.copy(endMs = end, text = joinText(c.text, w.text))

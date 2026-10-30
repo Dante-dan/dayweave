@@ -13,9 +13,21 @@ android {
         applicationId = "app.dayweave"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1-demo"
+        versionCode = 2
+        versionName = "0.2"
         ndk { abiFilters += "arm64-v8a" }
+        // 拾日云的地址。开源构建留空，只能自带密钥：./gradlew assembleRelease -PcloudUrl=https://...
+        buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: ""}\"")
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // 本地体验用调试签名；正式发布换成自己的签名。
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {
@@ -27,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     androidResources {
         noCompress += "onnx"
@@ -48,4 +61,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("dev.chrisbanes.haze:haze:1.1.1")
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }

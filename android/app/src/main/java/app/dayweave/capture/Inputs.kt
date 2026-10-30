@@ -2,14 +2,11 @@ package app.dayweave.capture
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.media.projection.MediaProjection
 import android.os.SystemClock
 import android.util.Log
 import app.dayweave.core.InputSelection
@@ -21,20 +18,25 @@ private const val TAG = "Dayweave"
 private val BT_TYPES = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET)
 private const val STARTUP_TIMEOUT_MS = 10_000L
 private const val STARTUP_REBUILD_MS = 3_000L
-private const val REROUTE_INTERVAL_MS = 30_000L
+private const val WINDOW_MS = 500L
+/** 别的声音停下后，安静这么久才把耳机麦克风接回来。 */
+private const val RECLAIM_AFTER_MS = 15_000L
+private const val RETRY_INTERVAL_MS = 30_000L
 
 data class InputOption(val selection: InputSelection, val isBluetooth: Boolean)
 
-/** 可选的麦克风：每台在线的蓝牙通话设备（耳机、车载可同时出现）和手机麦克风。 */
+val InputSelection.isBluetooth get() = type in BT_TYPES
+
+/** 可选的麦克风：手机麦克风（静默倾听，推荐）和每台在线的蓝牙通话设备。 */
 fun listInputs(context: Context): List<InputOption> {
     val audio = context.getSystemService(AudioManager::class.java)
-    val bluetooth = runCatching { audio.availableCommunicationDevices }.getOrDefault(emptyList())
-        .filter { it.type in BT_TYPES }
-        .map { InputOption(InputSelection(it.type, it.address, it.productName.toString()), isBluetooth = true) }
     val builtin = audio.getDevices(AudioManager.GET_DEVICES_INPUTS)
         .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
         ?.let { InputOption(InputSelection(it.type, it.address, "手机麦克风"), isBluetooth = false) }
-    return (bluetooth + listOfNotNull(builtin)).distinctBy { it.selection }
+    val bluetooth = runCatching { audio.availableCommunicationDevices }.getOrDefault(emptyList())
+        .filter { it.type in BT_TYPES }
+        .map { InputOption(InputSelection(it.type, it.address, it.productName.toString()), isBluetooth = true) }
+    return (listOfNotNull(builtin) + bluetooth).distinctBy { it.selection }
 }
 
 /** HyperOS 会把蓝牙地址隐藏成 00:00:00:00:00:00，所以同时比较设备名。 */
@@ -42,20 +44,53 @@ private fun InputSelection.matches(device: AudioDeviceInfo) =
     device.type == type && device.address == address &&
         (type !in BT_TYPES || device.productName.toString() == name)
 
-/** 一路持续采集：读取 100 ms 帧交给分段器。 */
-abstract class CaptureInput(protected val segmenter: Segmenter) {
-    @Volatile protected var running = false
+/**
+ * 麦克风持续采集，读取 100 ms 帧交给分段器。用原始 MIC 音源，避免通话降噪把语音压低约 15 dB。
+ *
+ * 做一个安静的旁听者：
+ * - 不申请音频焦点、不播放任何声音；别的 App 要用麦克风时，系统会先让它用（我们这边只会收到静音）。
+ * - 手机麦克风完全不影响耳机里的音乐和通话。
+ * - 蓝牙耳机的麦克风只能走通话链路，会让耳机进入通话模式。所以只在没有别的声音时借用；
+ *   一旦有音乐、播客、视频或通话，立刻还给系统，临时改用手机麦克风，安静一阵后再接回耳机。
+ *
+ * “仅在使用中允许”的授权刚生效时系统可能先给静音数据，所以先等到真实信号再开始分段。
+ */
+class MicInput(
+    context: Context,
+    private val selection: InputSelection,
+    private val segmenter: Segmenter,
+    private val scene: AudioScene,
+    private val onEvent: (String) -> Unit,
+) {
+    private val audio = context.getSystemService(AudioManager::class.java)
+    private val wantsBluetooth = selection.isBluetooth
+    @Volatile private var running = false
     private var worker: Thread? = null
 
     /** 启动门槛已通过、正在产出有效音频。 */
     @Volatile var ready = false
-        protected set
+        private set
+
+    /** 此刻真正在用的麦克风，例如耳机让路时会显示手机麦克风。 */
+    @Volatile var routedName: String = selection.name
+        private set
+
+    /** 耳机麦克风是否正让给别的声音。 */
+    @Volatile var yielded = false
+        private set
+
+    /** 系统把麦克风先给了别的 App（例如通话录音、语音助手），我们暂时只收到静音。 */
+    @Volatile var silenced = false
+        private set
 
     val levelDb get() = segmenter.levelDb
+    val speaking get() = segmenter.speaking
+
+    private var onBluetooth = false
 
     fun start() {
         running = true
-        worker = thread(name = javaClass.simpleName) { run() }
+        worker = thread(name = "mic") { run() }
     }
 
     fun stop() {
@@ -65,98 +100,99 @@ abstract class CaptureInput(protected val segmenter: Segmenter) {
         ready = false
     }
 
-    protected abstract fun run()
+    private fun builtin(): AudioDeviceInfo? =
+        audio.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
 
-    protected fun pump(rec: AudioRecord, onWindow: () -> Unit = {}) {
+    private fun run() {
+        val rec = awaitLiveInput() ?: return
+        ready = true
+        var lastTry = SystemClock.elapsedRealtime()
+        var quietSince = SystemClock.elapsedRealtime()
         val frame = ShortArray(FRAME_SAMPLES)
-        var lastWindow = SystemClock.elapsedRealtime()
+        var lastWindow = 0L
         while (running) {
             val n = rec.read(frame, 0, frame.size)
             if (n > 0) segmenter.accept(frame, n, System.currentTimeMillis()) else SystemClock.sleep(20)
             val now = SystemClock.elapsedRealtime()
-            if (now - lastWindow >= 10_000) {
-                lastWindow = now
-                onWindow()
+            if (now - lastWindow < WINDOW_MS) continue
+            lastWindow = now
+            silenced = isSilenced(rec) == true
+            if (scene.busy) quietSince = now
+            if (wantsBluetooth) {
+                when {
+                    onBluetooth && scene.busy -> {
+                        releaseBluetooth()
+                        rec.preferredDevice = builtin()
+                        yielded = true
+                        onEvent("耳机正在放别的声音，已让出，暂用手机麦克风")
+                    }
+                    onBluetooth && audio.communicationDevice?.let(selection::matches) != true -> {
+                        releaseBluetooth()
+                        rec.preferredDevice = builtin()
+                        onEvent("${selection.name} 已断开，暂用手机麦克风")
+                    }
+                    !onBluetooth && !scene.busy && now - quietSince >= RECLAIM_AFTER_MS && now - lastTry >= RETRY_INTERVAL_MS -> {
+                        lastTry = now
+                        if (acquireBluetooth()) {
+                            rec.preferredDevice = bluetoothInput()
+                            yielded = false
+                            onEvent("已接回 ${selection.name}")
+                        }
+                    }
+                }
             }
+            routedName = rec.routedDevice?.productName?.toString()?.let { if (onBluetooth) it else "手机麦克风" } ?: routedName
         }
         segmenter.flush()
-    }
-
-    protected fun format(): AudioFormat = AudioFormat.Builder()
-        .setSampleRate(SAMPLE_RATE)
-        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-        .build()
-
-    protected fun bufferBytes() = max(
-        AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 4,
-        SAMPLE_RATE * 2,
-    )
-}
-
-/**
- * 麦克风：蓝牙设备通过 setCommunicationDevice 切到通话链路；用原始 MIC 音源，避免通话降噪把语音压低约 15 dB。
- * “仅在使用中允许”的授权刚生效时系统可能先给静音数据，所以先等到真实信号再开始分段。
- */
-class MicInput(
-    private val context: Context,
-    private val selection: InputSelection,
-    segmenter: Segmenter,
-    private val onEvent: (String) -> Unit,
-) : CaptureInput(segmenter) {
-    private val audio = context.getSystemService(AudioManager::class.java)
-    private val isBluetooth = selection.type in BT_TYPES
-    @Volatile private var preferred: AudioDeviceInfo? = null
-    @Volatile var routedName: String = selection.name
-        private set
-
-    override fun run() {
-        route()
-        val rec = awaitLiveInput() ?: return
-        ready = true
-        var lastReroute = 0L
-        pump(rec) {
-            routedName = rec.routedDevice?.productName?.toString() ?: "-"
-            val now = SystemClock.elapsedRealtime()
-            if (isBluetooth && audio.communicationDevice?.let(selection::matches) != true &&
-                now - lastReroute >= REROUTE_INTERVAL_MS
-            ) {
-                lastReroute = now
-                onEvent("${selection.name} 已断开，正在重连")
-                if (route()) rec.preferredDevice = preferred
-            }
-        }
         rec.stop()
         rec.release()
-        if (isBluetooth) {
-            audio.clearCommunicationDevice()
-            audio.mode = AudioManager.MODE_NORMAL
-        }
+        releaseBluetooth()
     }
 
-    private fun route(): Boolean {
-        val inputs = audio.getDevices(AudioManager.GET_DEVICES_INPUTS)
-        if (!isBluetooth) {
-            preferred = inputs.firstOrNull(selection::matches) ?: inputs.firstOrNull { it.type == selection.type }
-            return preferred != null
-        }
-        audio.mode = AudioManager.MODE_IN_COMMUNICATION
+    private fun bluetoothInput() = audio.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull(selection::matches)
+
+    /** 把耳机切到通话链路以使用它的麦克风。别人正在用声音时不抢。 */
+    private fun acquireBluetooth(): Boolean {
+        if (scene.busy) return false
         val comm = audio.availableCommunicationDevices.firstOrNull(selection::matches) ?: return false
-        val ok = audio.setCommunicationDevice(comm)
-        preferred = inputs.firstOrNull(selection::matches)
-        Log.i(TAG, "route ${selection.name} ok=$ok input=${preferred?.productName}")
-        return ok && preferred != null
+        scene.ownCommunication = true
+        audio.mode = AudioManager.MODE_IN_COMMUNICATION
+        val ok = audio.setCommunicationDevice(comm) && bluetoothInput() != null
+        Log.i(TAG, "acquire ${selection.name} ok=$ok")
+        if (!ok) releaseBluetooth() else onBluetooth = true
+        return ok
+    }
+
+    /** 归还耳机。只撤销我们自己的请求；别人在通话时不动系统音频模式。 */
+    private fun releaseBluetooth() {
+        if (!onBluetooth && !scene.ownCommunication) return
+        audio.clearCommunicationDevice()
+        if (!scene.calling && audio.mode == AudioManager.MODE_IN_COMMUNICATION) audio.mode = AudioManager.MODE_NORMAL
+        scene.ownCommunication = false
+        onBluetooth = false
+        Log.i(TAG, "release ${selection.name}")
     }
 
     @SuppressLint("MissingPermission")
     private fun build(): AudioRecord? = try {
+        if (wantsBluetooth && !onBluetooth) {
+            if (!acquireBluetooth()) yielded = scene.busy
+        }
         AudioRecord.Builder()
             .setAudioSource(MediaRecorder.AudioSource.MIC)
-            .setAudioFormat(format())
-            .setBufferSizeInBytes(bufferBytes())
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(SAMPLE_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .build(),
+            )
+            .setBufferSizeInBytes(
+                max(AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 4, SAMPLE_RATE * 2),
+            )
             .build()
             .also {
-                it.preferredDevice = preferred
+                it.preferredDevice = if (onBluetooth) bluetoothInput() else builtin()
                 it.startRecording()
             }
     } catch (e: SecurityException) {
@@ -164,7 +200,7 @@ class MicInput(
         null
     }
 
-    private fun silenced(rec: AudioRecord): Boolean? = audio.activeRecordingConfigurations
+    private fun isSilenced(rec: AudioRecord): Boolean? = audio.activeRecordingConfigurations
         .firstOrNull { it.clientAudioSessionId == rec.audioSessionId }?.isClientSilenced
 
     private fun awaitLiveInput(): AudioRecord? {
@@ -174,7 +210,7 @@ class MicInput(
         var rec = build() ?: return null
         while (running) {
             val n = rec.read(frame, 0, frame.size)
-            val live = silenced(rec) == false && n > 0 && (0 until n).any { frame[it].toInt() != 0 }
+            val live = isSilenced(rec) == false && n > 0 && (0 until n).any { frame[it].toInt() != 0 }
             val now = SystemClock.elapsedRealtime()
             if (live || now - begin >= STARTUP_TIMEOUT_MS) {
                 Log.i(TAG, "mic ready=$live after ${now - begin} ms")
@@ -187,32 +223,9 @@ class MicInput(
                 builtAt = SystemClock.elapsedRealtime()
             }
         }
-        return rec
-    }
-}
-
-/**
- * 手机正在播放的声音（耳机里的会议、视频、播客）。Android 只允许录制媒体、游戏和未分类的声音；
- * 通话和大多数会议 App 在会中使用通话类声音，系统不允许第三方录制。
- */
-class PlaybackInput(private val projection: MediaProjection, segmenter: Segmenter) : CaptureInput(segmenter) {
-
-    @SuppressLint("MissingPermission")
-    override fun run() {
-        val config = AudioPlaybackCaptureConfiguration.Builder(projection)
-            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-            .addMatchingUsage(AudioAttributes.USAGE_GAME)
-            .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-            .build()
-        val rec = AudioRecord.Builder()
-            .setAudioPlaybackCaptureConfig(config)
-            .setAudioFormat(format())
-            .setBufferSizeInBytes(bufferBytes())
-            .build()
-        rec.startRecording()
-        ready = true
-        pump(rec)
         rec.stop()
         rec.release()
+        releaseBluetooth()
+        return null
     }
 }

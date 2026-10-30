@@ -13,14 +13,45 @@ import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 
 /**
- * 服务账号认证。凭证放在 App 私有目录 files/google-sa.json，由 android/scripts/push-credentials.sh 写入，
- * 不打包进 APK。令牌有效期 1 小时，提前 5 分钟刷新。
+ * 用户自己的 Google Cloud 服务账号（开源版自带密钥）。凭证放在 App 私有目录 files/google-sa.json，
+ * 在 App 里导入，或用 android/scripts/push-credentials.sh 写入；不打包进 APK、不上传。令牌有效期 1 小时，提前 5 分钟刷新。
  */
 class GoogleAuth(private val file: File) {
     private var token: String? = null
     private var expiresAt = 0L
 
     val available get() = file.exists()
+
+    /** 服务账号所属的项目，转写和 Vertex AI 都在这个项目下计费。 */
+    val projectId: String
+        get() = runCatching {
+            Json.parseToJsonElement(file.readText()).jsonObject.getValue("project_id").jsonPrimitive.content
+        }.getOrDefault("")
+
+    val email: String?
+        get() = runCatching {
+            Json.parseToJsonElement(file.readText()).jsonObject.getValue("client_email").jsonPrimitive.content
+        }.getOrNull()
+
+    /** 校验并保存服务账号 JSON。格式不对时抛 IllegalArgumentException。 */
+    @Synchronized
+    fun import(text: String) {
+        val sa = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
+        require(sa != null && sa["type"]?.jsonPrimitive?.content == "service_account") { "这不是服务账号 JSON" }
+        require(listOf("project_id", "private_key", "client_email", "token_uri").all { sa.containsKey(it) }) { "服务账号 JSON 缺少字段" }
+        val tmp = File(file.parentFile, "${file.name}.tmp")
+        tmp.writeText(text)
+        tmp.renameTo(file)
+        token = null
+        expiresAt = 0
+    }
+
+    @Synchronized
+    fun clear() {
+        file.delete()
+        token = null
+        expiresAt = 0
+    }
 
     @Synchronized
     fun token(): String {
@@ -67,5 +98,3 @@ class GoogleAuth(private val file: File) {
     private fun b64(bytes: ByteArray) =
         Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 }
-
-class HttpException(val code: Int, body: String) : Exception("HTTP $code: ${body.take(300)}")
