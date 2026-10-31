@@ -9,8 +9,8 @@ settings:
   base:
     DEVELOPMENT_TEAM: 97M5J4K9WG
     SWIFT_VERSION: "5.10"
-    MARKETING_VERSION: "0.3"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "2"
 targets:
   Dayweave:
     type: application

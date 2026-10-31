@@ -8,7 +8,7 @@ export const UPDATED = '2026-10-31'
 export const PLANS = [
   { id: 'lite', usd: 19.99, yearly: 199.99, hours: 5 },
   { id: 'plus', usd: 99.99, yearly: 999.99, hours: 30, featured: true },
-  { id: 'pro', usd: 199.99, yearly: 1999.99, hours: 100 },
+  { id: 'pro', usd: 199.99, hours: 100 },
   { id: 'max', usd: 499.99, hours: 280 },
 ]
 /** 月付相对按量（授权码）的折扣；年付相对 12 个月月付的折扣。 */

@@ -54,33 +54,6 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "1999.99",
-          "familyShareable": false,
-          "groupNumber": 2,
-          "internalID": "6740000103",
-          "introductoryOffer": null,
-          "localizations": [
-            {
-              "description": "100 hours of voice a month",
-              "displayName": "Dayweave Cloud Pro (yearly)",
-              "locale": "en_US"
-            },
-            {
-              "description": "每月 100 小时人声",
-              "displayName": "拾日云 专业（年付）",
-              "locale": "zh_Hans"
-            }
-          ],
-          "productID": "app.dayweave.cloud.pro.yearly",
-          "recurringSubscriptionPeriod": "P1Y",
-          "referenceName": "Cloud Pro Yearly",
-          "subscriptionGroupID": "21500001",
-          "type": "RecurringSubscription",
-          "winbackOffers": []
-        },
-        {
-          "adHocOffers": [],
-          "codeOffers": [],
           "displayPrice": "199.99",
           "familyShareable": false,
           "groupNumber": 3,

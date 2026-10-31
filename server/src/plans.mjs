@@ -1,13 +1,13 @@
 // 订阅方案（App Store / Google Play 自动续期）。两边商品 ID 相同。
 // 每个月发放固定的人声时长，折成余额（按当前单价），月底不结转；年付同样按月发放，每 30 天重置一次。
-// 年付 = 10 个月的价格；全天只有月付。
+// 年付 = 10 个月的价格；专业和全天只有月付（App Store 订阅单价上限 $1,000）。
 // 改价格时同步 site/content.mjs、两个 App 内的方案和两边商店后台。
 import { pricing } from './pricing.mjs'
 
 const TIERS = {
   lite: { hours: 5, monthly: 19.99, yearly: 199.99 },
   plus: { hours: 30, monthly: 99.99, yearly: 999.99 },
-  pro: { hours: 100, monthly: 199.99, yearly: 1999.99 },
+  pro: { hours: 100, monthly: 199.99 },
   max: { hours: 280, monthly: 499.99 },
 }
 

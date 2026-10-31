@@ -24,11 +24,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /** 拾日云订阅方案。商品 ID 与 App Store、服务端 plans.mjs 一致：app.dayweave.cloud.<档位>.<monthly|yearly>。 */
-/** 年付 = 10 个月的价格；全天只有月付（yearlyUsd 为 null）。 */
+/** 年付 = 10 个月的价格；专业和全天只有月付（yearlyUsd 为 null）。 */
 enum class Plan(val hours: Int, val monthlyUsd: String, val yearlyUsd: String?, private val zh: String, private val en: String) {
     LITE(5, "$19.99", "$199.99", "轻享", "Lite"),
     PLUS(30, "$99.99", "$999.99", "标准", "Plus"),
-    PRO(100, "$199.99", "$1,999.99", "专业", "Pro"),
+    PRO(100, "$199.99", null, "专业", "Pro"),
     MAX(280, "$499.99", null, "全天", "Max"),
     ;
 

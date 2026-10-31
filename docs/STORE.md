@@ -62,7 +62,7 @@ Dayweave Cloud subscriptions include a monthly allowance of transcribed voice. O
 
 ## 订阅商品
 
-一个订阅组“Dayweave Cloud”，同组内可升降级（排序从高到低：全天月付 → 轻享月付）。商品 ID 与服务端 `server/src/plans.mjs` 一致。Google Play 上每个商品建一个基础方案。年付 = 10 个月价格；全天只有月付。
+一个订阅组“Dayweave Cloud”，同组内可升降级（排序从高到低：全天月付 → 轻享月付）。商品 ID 与服务端 `server/src/plans.mjs` 一致。Google Play 上每个商品建一个基础方案。年付 = 10 个月价格；专业和全天只有月付（App Store 订阅单价上限 $1,000）。
 
 | 商品 ID | 名称 | 周期 | 价格（USD） |
 | --- | --- | --- | --- |
@@ -71,7 +71,6 @@ Dayweave Cloud subscriptions include a monthly allowance of transcribed voice. O
 | `app.dayweave.cloud.plus.monthly` | 拾日云 标准 · 每月 30 小时 | 1 个月 | 99.99 |
 | `app.dayweave.cloud.plus.yearly` | 拾日云 标准（年付） | 1 年 | 999.99 |
 | `app.dayweave.cloud.pro.monthly` | 拾日云 专业 · 每月 100 小时 | 1 个月 | 199.99 |
-| `app.dayweave.cloud.pro.yearly` | 拾日云 专业（年付） | 1 年 | 1,999.99 |
 | `app.dayweave.cloud.max.monthly` | 拾日云 全天 · 每月 280 小时 | 1 个月 | 499.99 |
 
 ## 服务端配置
