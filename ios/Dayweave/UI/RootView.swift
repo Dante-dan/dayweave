@@ -19,7 +19,7 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { DaysView() }
+            DaysView()
                 .tabItem { Label(tr("拾日", "Today"), systemImage: "sun.max") }
                 .tag(Tab.days)
             NavigationStack { TimelineScreen() }

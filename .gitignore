@@ -65,3 +65,6 @@ node_modules/
 # 落地页构建产物
 /site/dist/
 /site/node_modules/
+
+# 商店截图（体积大，本地保留）
+/store-assets/

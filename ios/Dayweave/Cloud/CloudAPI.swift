@@ -60,7 +60,15 @@ final class CloudAPI {
         return nil
     }
 
+    #if DEBUG
+    /** 上架截图：固定显示一个示例账户，不访问服务端。 */
+    var demoAccount: CloudAccount?
+    #endif
+
     func refresh() async {
+        #if DEBUG
+        if let demoAccount { status = .ready(demoAccount); return }
+        #endif
         guard Self.available else { return }
         guard let code = licenseCode, !code.isEmpty else { status = .noLicense; return }
         if account == nil { status = .loading }

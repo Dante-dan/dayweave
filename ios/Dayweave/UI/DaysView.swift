@@ -5,8 +5,13 @@ struct DaysView: View {
     @Environment(Archive.self) private var archive
     @Environment(Digests.self) private var digests
     @Environment(CloudAPI.self) private var cloud
+    @State private var path: [String] = CommandLine.arguments.contains("-detail") ? [dayKey(Date())] : []
 
     var body: some View {
+        NavigationStack(path: $path) { content }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header

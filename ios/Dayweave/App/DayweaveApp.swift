@@ -22,6 +22,13 @@ final class AppModel {
         #if DEBUG
         // 模拟器自测：SIMCTL_CHILD_DAYWEAVE_LICENSE 写入授权码，-autostart 启动后直接旁听
         if let code = ProcessInfo.processInfo.environment["DAYWEAVE_LICENSE"] { cloud.licenseCode = code }
+        if CommandLine.arguments.contains("-demo") {
+            Demo.seed(archive)
+            // 标准方案，本月用掉 8.5 小时
+            cloud.demoAccount = CloudAccount(label: "sub:plus", resetsAt: Date().addingTimeInterval(19 * 86400).ms, grantedMicros: 30 * 60 * 80_800,
+                                             balanceMicros: Int64(21.5 * 60) * 80_800, priceMicrosPerMinute: 80_800, monthSeconds: 8 * 3600 + 30 * 60)
+            Task { await cloud.refresh() }
+        }
         if CommandLine.arguments.contains("-autostart") { Task { await recorder.start() } }
         if let path = ProcessInfo.processInfo.environment["DAYWEAVE_FEED"] { Task { await recorder.feed(URL(fileURLWithPath: path)) } }
         #endif
