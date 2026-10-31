@@ -26,9 +26,11 @@ import app.dayweave.core.tr
 @Serializable
 data class LedgerEntry(val at: Long, val kind: String, val seconds: Long = 0, val micros: Long)
 
-/** 一个授权码的额度与用量。金额单位是百万分之一美元。 */
+/** 一个授权码（或订阅）的额度与用量。金额单位是百万分之一美元。订阅的 label 为 sub:<方案>，expiresAt 为本周期结束时间。 */
 @Serializable
 data class CloudAccount(
+    val label: String = "",
+    val expiresAt: Long? = null,
     val grantedMicros: Long = 0,
     val balanceMicros: Long,
     val priceMicrosPerMinute: Long,
@@ -37,14 +39,15 @@ data class CloudAccount(
     val ledger: List<LedgerEntry> = emptyList(),
 ) {
     val minutesLeft get() = if (priceMicrosPerMinute > 0) balanceMicros / priceMicrosPerMinute else 0
+    val plan get() = Plan.ofLabel(label)
 }
 
-/** 计价方式，由服务端给出，App 只负责展示。 */
 @Serializable
-data class CloudPricing(
-    val priceMicrosPerMinute: Long,
-    val note: String = "",
-)
+private data class SubscriptionReply(val licenseCode: String)
+
+/** 计价：每分钟人声的价格，由服务端给出。 */
+@Serializable
+data class CloudPricing(val priceMicrosPerMinute: Long)
 
 sealed interface CloudStatus {
     data object Unknown : CloudStatus
@@ -76,6 +79,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
         get() = when {
             base.isBlank() -> tr("这个版本没有接入拾日云", "This build isn't connected to Dayweave Cloud")
             settings.licenseCode.isNullOrBlank() -> tr("还没有填写拾日云授权码", "No Dayweave Cloud license code yet")
+            (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 && it.plan != null } == true -> tr("本月订阅时长已用完", "This month's subscription hours are used up")
             (status.value as? CloudStatus.Ready)?.account?.let { it.balanceMicros <= 0 } == true -> tr("授权码额度已用完", "This license code is used up")
             else -> null
         }
@@ -99,8 +103,11 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
                 .onSuccess { _status.value = CloudStatus.Ready(it) }
                 .onFailure {
                     _status.value = CloudStatus.Failed(
-                        if (it is HttpException && it.code == 401) tr("授权码无效", "Invalid license code")
-                        else tr("连接失败", "Couldn't connect"),
+                        when {
+                            it is HttpException && it.code == 401 -> tr("授权码无效", "Invalid license code")
+                            it is HttpException && it.code == 402 -> tr("订阅已到期，续订或恢复购买后继续", "Subscription ended. Renew or restore purchases to continue")
+                            else -> tr("连接失败", "Couldn't connect")
+                        },
                     )
                 }
         }
@@ -117,6 +124,26 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
             401 -> tr("授权码无效", "Invalid license code")
             429 -> tr("尝试次数太多，请一小时后再试", "Too many attempts. Try again in an hour")
             else -> tr("验证失败（${e.code}）", "Couldn't verify (${e.code})")
+        }
+    } catch (e: Exception) {
+        tr("网络不可用", "No network")
+    }
+
+    /** 把商店的订阅凭证交给服务端核验，换回拾日云凭证并保存。成功返回 null，否则返回错误说明。 */
+    fun subscribe(store: String, token: String): String? = try {
+        val body = buildJsonObject {
+            put("store", store)
+            put(if (store == "apple") "signedTransaction" else "purchaseToken", token)
+        }.toString()
+        val reply = json.decodeFromString<SubscriptionReply>(postJson("$base/v1/subscription", body, emptyMap(), readTimeoutMs = 60_000))
+        settings.licenseCode = reply.licenseCode
+        refresh()
+        null
+    } catch (e: HttpException) {
+        when (e.code) {
+            402 -> tr("订阅已到期", "This subscription has ended")
+            429 -> tr("尝试次数太多，请一小时后再试", "Too many attempts. Try again in an hour")
+            else -> tr("订阅核验失败（${e.code}）", "Couldn't verify the subscription (${e.code})")
         }
     } catch (e: Exception) {
         tr("网络不可用", "No network")

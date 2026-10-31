@@ -1,0 +1,223 @@
+{
+  "appPolicies": {
+    "eula": "",
+    "policies": [
+      {
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
+      }
+    ]
+  },
+  "identifier": "DAYWEAVE0",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "21500001",
+      "localizations": [],
+      "name": "Dayweave Cloud",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "499.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6740000102",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "280 hours of voice a month",
+              "displayName": "Dayweave Cloud Max (monthly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 280 小时人声",
+              "displayName": "拾日云 全天（月付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.max.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Cloud Max Monthly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1999.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "6740000103",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "100 hours of voice a month",
+              "displayName": "Dayweave Cloud Pro (yearly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 100 小时人声",
+              "displayName": "拾日云 专业（年付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Cloud Pro Yearly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "199.99",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "6740000104",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "100 hours of voice a month",
+              "displayName": "Dayweave Cloud Pro (monthly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 100 小时人声",
+              "displayName": "拾日云 专业（月付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Cloud Pro Monthly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "999.99",
+          "familyShareable": false,
+          "groupNumber": 4,
+          "internalID": "6740000105",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "30 hours of voice a month",
+              "displayName": "Dayweave Cloud Plus (yearly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 30 小时人声",
+              "displayName": "拾日云 标准（年付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.plus.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Cloud Plus Yearly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "99.99",
+          "familyShareable": false,
+          "groupNumber": 5,
+          "internalID": "6740000106",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "30 hours of voice a month",
+              "displayName": "Dayweave Cloud Plus (monthly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 30 小时人声",
+              "displayName": "拾日云 标准（月付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.plus.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Cloud Plus Monthly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "199.99",
+          "familyShareable": false,
+          "groupNumber": 6,
+          "internalID": "6740000107",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "5 hours of voice a month",
+              "displayName": "Dayweave Cloud Lite (yearly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 5 小时人声",
+              "displayName": "拾日云 轻享（年付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.lite.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Cloud Lite Yearly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "19.99",
+          "familyShareable": false,
+          "groupNumber": 7,
+          "internalID": "6740000108",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "5 hours of voice a month",
+              "displayName": "Dayweave Cloud Lite (monthly)",
+              "locale": "en_US"
+            },
+            {
+              "description": "每月 5 小时人声",
+              "displayName": "拾日云 轻享（月付）",
+              "locale": "zh_Hans"
+            }
+          ],
+          "productID": "app.dayweave.cloud.lite.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Cloud Lite Monthly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

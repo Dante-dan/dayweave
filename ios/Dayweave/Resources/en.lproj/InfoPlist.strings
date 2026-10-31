@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Dayweave listens for conversations so it can keep a text archive of your day. Audio is deleted after transcription.";
+"NSCalendarsWriteOnlyAccessUsageDescription" = "Dayweave adds plans you mention in conversations to your calendar when you tap “Add to calendar”.";

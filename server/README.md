@@ -8,15 +8,25 @@
 
 ## 计价
 
+按有效人声时长计费：**$0.0808 / 分钟**（$4.85 / 小时），单价由服务端 `.env` 的 `PRICE_MICROS_PER_MINUTE` 决定。整理和主动提醒不单独收费，每个凭证每天最多 120 次 AI 调用。
 
-| --- | --- | --- |
-| **合计** | | **$0.0404 / 分钟有效人声（约 $2.42 / 小时）** |
+订阅（App Store / Google Play 自动续期，见 `src/plans.mjs`）。年付 = 10 个月的价格，同样每 30 天发放一次当月时长；全天只有月付。
 
-价格核对于 2026-10-30。整理和主动提醒不单独收费，每个授权码每天最多 120 次 AI 调用。
+| 方案 | 每月人声时长 | 月付 | 年付 |
+| --- | --- | --- | --- |
+| 轻享 Lite | 5 小时 | $19.99 | $199.99 |
+| 标准 Plus | 30 小时 | $99.99 | $999.99 |
+| 专业 Pro | 100 小时 | $199.99 | $1,999.99 |
+| 全天 Max | 280 小时 | $499.99 | — |
+
+订阅核验通过后换成凭证 `DS-…`（服务端密钥对订阅标识做 HMAC，库里只存哈希），每个月余额重置为方案时长，不结转：
+
+- App Store：App 交来 StoreKit 2 的签名交易，服务端离线核验证书链到 Apple Root CA - G3。
+- Google Play：App 交来 purchaseToken，服务端用服务账号查询 Android Publisher API 并确认购买（`GOOGLE_PLAY_SERVICE_ACCOUNT_FILE`，不填则用同一个服务账号，需要在 Play 管理中心授权）。
 
 ## 授权码
 
-没有用户体系：**授权码就是使用权**。每个授权码有固定额度（例如 $5），按有效转录时长扣费，用完即止，不能充值，换一个新码即可。
+没有用户体系：**授权码就是使用权**。每个授权码有固定额度（$20，约 4 小时人声），按有效转录时长扣费，用完即止，不能充值，换一个新码即可。
 
 - 服务端只保存授权码的 SHA-256 和余额，不保存明文；即使数据库泄露也拿不到可用的码。
 - 授权码 `DW-XXXXX-XXXXX-XXXXX-XXXXX`：Crockford Base32，100 bit 随机熵，在**本地**生成（`server/local/`，不进仓库），明文只写在本机 `server/local/codes.csv`（权限 600）。
@@ -25,7 +35,7 @@
 发码（明文留在本地，只把哈希导入服务器）：
 
 ```bash
-node server/local/issue-codes.mjs --count 10 --usd 5 --label sale-2026-10-30 \
+node server/local/issue-codes.mjs --count 10 --usd 20 --label sale-2026-10-30 \
   | ssh us-xl 'docker exec -i dayweave-cloud node src/import-licenses.mjs'
 ```
 
@@ -46,12 +56,14 @@ App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://
 | --- | --- | --- |
 | GET | `/v1/pricing` | 计价说明（公开） |
 | GET | `/v1/me` | 授权码的额度、余额、本月用量、最近记录 |
+| GET | `/v1/plans` | 订阅方案（公开） |
+| POST | `/v1/subscription` | `{store: apple \| google, signedTransaction \| purchaseToken}`；核验商店订阅，返回凭证 `licenseCode` |
 | POST | `/v1/transcribe` | `{audio}` 16 kHz 16-bit 单声道 PCM 的 base64，≤ 60 秒；返回 Speech-to-Text v2 结果；按秒扣费 |
 | POST | `/v1/assist` | `{kind: digest \| agent, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 120 次 |
 
 ## 线上部署（us-xl）
 
-- 地址：`https://dayweave.duanjl.com`，经独立的 Cloudflare Tunnel `dayweave` 暴露；服务只监听 `127.0.0.1:8787`，不暴露服务器 IP。
+- 地址：`https://api.duanjl.com/dayweave`：Cloudflare Tunnel `dayweave` → 本机 openresty（`127.0.0.1:8780`，按路径分流）→ 服务 `127.0.0.1:8787`，不暴露服务器 IP。落地页 `dayweave.duanjl.com` 在另一台机器上。
 - 目录：`~/dayweave/{app,secrets,data,tunnel}` 和 `~/dayweave/.env`（权限 600，服务账号路径为容器内的 `/secrets/google-sa.json`）。
 - 开机自启：
   - 服务：Docker 容器 `dayweave-cloud`，重启策略 `unless-stopped`，随 Docker 启动。

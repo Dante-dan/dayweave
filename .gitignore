@@ -57,3 +57,11 @@ node_modules/
 
 # 授权码生成工具与明文授权码只在本地
 /server/local/
+
+# iOS：工程由 xcodegen 生成
+/ios/Dayweave.xcodeproj/
+/ios/build/
+
+# 落地页构建产物
+/site/dist/
+/site/node_modules/

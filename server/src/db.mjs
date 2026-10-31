@@ -2,9 +2,10 @@
 // 没有用户体系：授权码本身就是凭证，每个码有固定额度，用完即止。
 // 数据库里只存授权码的 SHA-256，不存明文；授权码在本地生成（server/local/，不进仓库），只把哈希导入这里。
 import { DatabaseSync } from 'node:sqlite'
-import { createHash } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { MONTH_MS } from './plans.mjs'
 
 const path = process.env.DB_PATH || 'data/dayweave.db'
 mkdirSync(dirname(path), { recursive: true })
@@ -41,6 +42,34 @@ db.exec(`
 `)
 db.exec('DROP TABLE IF EXISTS ledger; DROP TABLE IF EXISTS digests;')
 
+// 订阅：每个商店订阅对应一行 licenses（label 为 sub:<方案>），余额在每个新周期重置为方案额度，expires_at 为当前周期结束时间。
+// external 是商店里稳定的标识：App Store 的 originalTransactionId，Google Play 的 purchaseToken。
+if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name = 'expires_at'").get()) {
+  db.exec('ALTER TABLE licenses ADD COLUMN expires_at INTEGER')
+}
+// 年付订阅按月发放：next_reset_at 到了就把余额重置为每月额度。
+if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name = 'next_reset_at'").get()) {
+  db.exec('ALTER TABLE licenses ADD COLUMN next_reset_at INTEGER')
+}
+// 每个授权码的单价：调价前售出的码沿用当时的价格（$0.0404/分钟），之后的码为空，按当前单价。
+if (!db.prepare("SELECT 1 FROM pragma_table_info('licenses') WHERE name = 'price_micros_per_minute'").get()) {
+  db.exec('ALTER TABLE licenses ADD COLUMN price_micros_per_minute INTEGER')
+  db.exec("UPDATE licenses SET price_micros_per_minute = 40400 WHERE label NOT LIKE 'sub:%'")
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    store TEXT NOT NULL,
+    external TEXT NOT NULL,
+    license TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    environment TEXT NOT NULL DEFAULT '',
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (store, external)
+  );
+  CREATE INDEX IF NOT EXISTS subscriptions_license ON subscriptions(license);
+`)
+
 /** 授权码规范化：去掉空格和连字符、转大写。“dw-abcd efgh” 与 “DWABCDEFGH” 是同一个码。 */
 export const normalize = (code) => String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
 export const hashOf = (code) => createHash('sha256').update(normalize(code)).digest('hex')
@@ -48,7 +77,14 @@ export const hashOf = (code) => createHash('sha256').update(normalize(code)).dig
 export function licenseFor(code) {
   const normalized = normalize(code)
   if (normalized.length < 16 || normalized.length > 40) return null
-  const row = db.prepare('SELECT * FROM licenses WHERE hash = ?').get(hashOf(normalized))
+  let row = db.prepare('SELECT * FROM licenses WHERE hash = ?').get(hashOf(normalized))
+  if (row?.next_reset_at && Date.now() >= row.next_reset_at && Date.now() < (row.expires_at || 0)) {
+    // 年付：跨过一个月就重置为每月额度（不结转），下一次重置顺延 30 天
+    let next = row.next_reset_at
+    while (next <= Date.now()) next += MONTH_MS
+    db.prepare('UPDATE licenses SET balance_micros = granted_micros, next_reset_at = ? WHERE hash = ?').run(next, row.hash)
+    row = db.prepare('SELECT * FROM licenses WHERE hash = ?').get(row.hash)
+  }
   return row && !row.disabled ? row : null
 }
 
@@ -73,6 +109,65 @@ export function charge(hash, seconds, micros) {
   }
 }
 
+/**
+ * 记录一次核验通过的商店订阅，返回 App 用来访问拾日云的凭证（DS-…）。
+ * 凭证由服务端密钥对订阅标识做 HMAC 得到：同一订阅在任何设备上恢复购买都得到同一个凭证，库里仍只存哈希。
+ * Google Play 升级降级会换新的 purchaseToken 并带上 linkedPurchaseToken，沿用原来的凭证和余额。
+ */
+export function upsertSubscription(proof, grantMicros, secret) {
+  const linked = proof.linked && db.prepare('SELECT license FROM subscriptions WHERE store = ? AND external = ?').get(proof.store, proof.linked)
+  const existing = db.prepare('SELECT license, expires_at, product_id FROM subscriptions WHERE store = ? AND external = ?').get(proof.store, proof.external)
+  const known = existing?.license || linked?.license
+  const code = subscriptionCode(known ? subscriptionRoot(known) : `${proof.store}:${proof.external}`, secret)
+  const license = known || hashOf(code)
+  const now = Date.now()
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const row = db.prepare('SELECT expires_at FROM licenses WHERE hash = ?').get(license)
+    const label = `sub:${proof.plan}`
+    // 年付：本周期内每 30 天重置一次；月付由商店续费触发重置
+    const nextReset = proof.period === 'yearly' ? now + MONTH_MS : null
+    if (!row) {
+      db.prepare('INSERT INTO licenses (hash, label, granted_micros, balance_micros, created_at, expires_at, next_reset_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(license, label, grantMicros, grantMicros, now, proof.expiresAt, nextReset)
+    } else if (proof.expiresAt > (row.expires_at || 0)) {
+      // 新的计费周期（续费或换方案）：余额重置为方案额度，不结转。
+      db.prepare('UPDATE licenses SET label = ?, granted_micros = ?, balance_micros = ?, expires_at = ?, next_reset_at = ?, disabled = 0 WHERE hash = ?')
+        .run(label, grantMicros, grantMicros, proof.expiresAt, nextReset, license)
+    }
+    db.prepare(`INSERT INTO subscriptions (store, external, license, product_id, expires_at, environment, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(store, external) DO UPDATE SET product_id = excluded.product_id, expires_at = excluded.expires_at, updated_at = excluded.updated_at`)
+      .run(proof.store, proof.external, license, proof.productId, proof.expiresAt, proof.environment || '', now)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+  return { license, code }
+}
+
+/** 由订阅的根标识推出凭证：DS + 24 位 Crockford Base32（120 bit）。 */
+export function subscriptionCode(root, secret) {
+  const mac = createHmac('sha256', secret).update(root).digest()
+  const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+  let bits = 0, value = 0, out = ''
+  for (const byte of mac) {
+    value = (value << 8) | byte
+    bits += 8
+    while (bits >= 5 && out.length < 24) {
+      out += alphabet[(value >>> (bits - 5)) & 31]
+      bits -= 5
+    }
+  }
+  return `DS-${out.match(/.{6}/g).join('-')}`
+}
+
+/** 订阅凭证对应的根标识（最早的那一笔订阅）。 */
+function subscriptionRoot(license) {
+  const row = db.prepare('SELECT store, external FROM subscriptions WHERE license = ? ORDER BY updated_at ASC LIMIT 1').get(license)
+  return row && `${row.store}:${row.external}`
+}
+
 export function summary(license) {
   const month = new Date()
   const since = new Date(month.getFullYear(), month.getMonth(), 1).getTime()
@@ -85,6 +180,8 @@ export function summary(license) {
     label: license.label,
     grantedMicros: license.granted_micros,
     balanceMicros: license.balance_micros,
+    expiresAt: license.expires_at || null,
+    resetsAt: license.next_reset_at || license.expires_at || null,
     monthSeconds: used.seconds,
     monthMicros: used.micros,
     ledger,

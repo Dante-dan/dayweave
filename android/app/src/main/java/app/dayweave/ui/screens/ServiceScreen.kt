@@ -2,6 +2,7 @@
 
 package app.dayweave.ui.screens
 
+import android.app.Activity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -67,6 +68,7 @@ import app.dayweave.ai.digestModel
 import app.dayweave.cloud.CloudAccount
 import app.dayweave.cloud.CloudPricing
 import app.dayweave.cloud.CloudStatus
+import app.dayweave.cloud.Plan
 import app.dayweave.core.AiConfig
 import app.dayweave.core.AiProvider
 import app.dayweave.core.ServiceMode
@@ -151,6 +153,7 @@ private fun CloudPanel() {
     val pricing by graph.cloud.pricing.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { graph.cloud.refresh() }
 
+    val account = (status as? CloudStatus.Ready)?.account
     when (val s = status) {
         is CloudStatus.Ready -> BalanceCard(s.account)
         is CloudStatus.Failed -> Card {
@@ -160,6 +163,7 @@ private fun CloudPanel() {
         CloudStatus.NoLicense -> Unit
         else -> Card { ShimmerLines(3) }
     }
+    PlansCard(account)
     LicenseCard(status)
     pricing?.let { PricingCard(it) }
     (status as? CloudStatus.Ready)?.account?.ledger?.takeIf { it.isNotEmpty() }?.let { ledger ->
@@ -191,12 +195,26 @@ private fun BalanceCard(account: CloudAccount) {
             .clip(RoundedCornerShape(26.dp)).background(Glass.Veil.copy(alpha = 0.9f)).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(tr("授权码剩余额度", "License balance"), style = Type.Micro.copy(color = Ink.Secondary))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(usd(account.balanceMicros), style = Type.Display)
-            if (account.grantedMicros > 0) Text(" / ${usd(account.grantedMicros)}", style = Type.Caption, modifier = Modifier.padding(bottom = 6.dp))
+        val plan = account.plan
+        if (plan != null) {
+            // 订阅：按时长展示，本周期结束时重置
+            val total = account.grantedMicros / account.priceMicrosPerMinute.coerceAtLeast(1)
+            Text(tr("拾日云 · ${plan.label}", "Dayweave Cloud · ${plan.label}"), style = Type.Micro.copy(color = Ink.Secondary))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(hours(account.minutesLeft), style = Type.Display)
+                Text(tr(" / ${hours(total)}", " / ${hours(total)}"), style = Type.Caption, modifier = Modifier.padding(bottom = 6.dp))
+            }
+            account.expiresAt?.let {
+                Text(tr("本月剩余人声时长 · ${day(it)} 续期重置", "Voice left this period · resets ${day(it)}"), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
+            }
+        } else {
+            Text(tr("授权码剩余额度", "License balance"), style = Type.Micro.copy(color = Ink.Secondary))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(usd(account.balanceMicros), style = Type.Display)
+                if (account.grantedMicros > 0) Text(" / ${usd(account.grantedMicros)}", style = Type.Caption, modifier = Modifier.padding(bottom = 6.dp))
+            }
+            Text(tr("约可转录 ${account.minutesLeft} 分钟人声", "About ${account.minutesLeft} minutes of voice left"), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
         }
-        Text(tr("约可转录 ${account.minutesLeft} 分钟人声", "About ${account.minutesLeft} minutes of voice left"), style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.Medium))
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Stat(tr("本月有效转录", "Voice this month"), tr("${account.monthSeconds / 60} 分 ${account.monthSeconds % 60} 秒", "${account.monthSeconds / 60}m ${account.monthSeconds % 60}s"))
@@ -218,30 +236,98 @@ private fun PricingCard(p: CloudPricing) {
     Card {
         Label(tr("怎么计费", "How pricing works"))
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(usd(p.priceMicrosPerMinute, digits = 3), style = Type.Title)
+            Text(usd(p.priceMicrosPerMinute, digits = 4), style = Type.Title)
             Text(tr(" / 分钟有效人声", " / minute of voice"), style = Type.Caption, modifier = Modifier.padding(bottom = 2.dp))
         }
         Text(
             tr("只按真正送去转写的人声时长计费。静音、环境音在手机上就被过滤掉；听音乐、播客和看视频的声音不录、不收费。", "You only pay for voice that's actually transcribed. Silence and room noise are filtered on the phone; music, podcasts and videos are never recorded or charged. ") +
-                tr("每日整理和主动提醒不另外收费。", "Daily digests and reminders are included.") + p.note,
+                tr("每日整理和主动提醒不另外收费。", "Daily digests and reminders are included."),
             style = Type.Caption,
         )
     }
 }
 
+/**
+ * 订阅方案：价格以 Google Play 返回的本地价格为准，商店还没上架时显示美元标价。
+ * 选中方案只靠颜色区分，不做描边到实心的变化。
+ */
 @Composable
-private fun PriceLine(icon: ImageVector, title: String, detail: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Glass.Veil.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Ink.Primary, modifier = Modifier.size(16.dp))
+private fun PlansCard(account: CloudAccount?) {
+    val context = LocalContext.current
+    val graph = context.graph
+    val offers by graph.store.offers.collectAsStateWithLifecycle()
+    val busy by graph.store.busy.collectAsStateWithLifecycle()
+    val message by graph.store.message.collectAsStateWithLifecycle()
+    var yearly by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { graph.store.load() }
+    val current = account?.plan
+    Card {
+        Label(tr("订阅拾日云", "Subscribe to Dayweave Cloud"))
+        Text(
+            tr("每月发放固定的人声时长，未用完的不结转；年付送 2 个月。可随时在 Google Play 取消。", "A monthly allowance of voice that doesn't roll over; yearly billing gets 2 months free. Cancel any time in Google Play."),
+            style = Type.Caption,
+        )
+        PeriodSwitch(yearly) { yearly = it }
+        Plan.entries.filter { !yearly || it.yearlyUsd != null }.forEach { plan ->
+            val offer = offers.firstOrNull { it.plan == plan && it.yearly == yearly }
+            val selected = plan == current
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(if (selected) Ink.Accent.copy(alpha = 0.12f) else Glass.Veil.copy(alpha = 0.55f))
+                    .pressable({ if (offer != null && !selected) context.activity()?.let { graph.store.purchase(it, offer) } }, scaleTo = 0.98f)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(plan.label, style = Type.Headline.copy(color = if (selected) Ink.Accent else Ink.Primary))
+                    Text(tr("每月 ${plan.hours} 小时人声 · ${plan.perDay}", "${plan.hours} h of voice a month · ${plan.perDay}"), style = Type.Micro)
+                }
+                val price = offer?.price ?: if (yearly) plan.yearlyUsd.orEmpty() else plan.monthlyUsd
+                Text(
+                    if (selected) tr("当前方案", "Current") else if (yearly) tr("$price / 年", "$price / yr") else tr("$price / 月", "$price / mo"),
+                    style = Type.Caption.copy(color = if (selected) Ink.Accent else Ink.Primary, fontWeight = FontWeight.SemiBold),
+                )
+            }
         }
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(title, style = Type.Body.copy(fontWeight = FontWeight.Medium))
-            Text(detail, style = Type.Micro)
+        if (offers.isEmpty()) {
+            Text(tr("订阅将随 Google Play 上架开放；现在可以先用授权码。", "Subscriptions open with the Google Play release. A license code works today."), style = Type.Micro)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Pill(if (busy) tr("核验中", "Verifying") else tr("恢复购买", "Restore purchases"), enabled = !busy) { graph.store.restore() }
+            Spacer(Modifier.width(10.dp))
+            message?.let { Text(it, style = Type.Caption, modifier = Modifier.weight(1f)) }
         }
     }
 }
+
+/** 月付 / 年付：与服务方式切换同一套回弹滑块。 */
+@Composable
+private fun PeriodSwitch(yearly: Boolean, onChange: (Boolean) -> Unit) {
+    val options = listOf(false to tr("月付", "Monthly"), true to tr("年付 · 送 2 个月", "Yearly · 2 months free"))
+    BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.55f)).height(40.dp).padding(3.dp)) {
+        val half = maxWidth / 2
+        val x by animateDpAsState(if (yearly) half else 0.dp, spring(dampingRatio = 0.75f, stiffness = 420f), label = "x")
+        Box(Modifier.offset(x = x).width(half).fillMaxHeight().clip(RoundedCornerShape(50)).background(Ink.Primary))
+        Row(Modifier.fillMaxSize()) {
+            options.forEach { (value, label) ->
+                val color by animateColorAsState(if (value == yearly) Ink.OnPrimary else Ink.Primary, label = "c")
+                Box(Modifier.weight(1f).fillMaxHeight().pressable({ onChange(value) }, scaleTo = 0.95f), contentAlignment = Alignment.Center) {
+                    Text(label, style = Type.Caption.copy(color = color, fontWeight = FontWeight.SemiBold))
+                }
+            }
+        }
+    }
+}
+
+private tailrec fun android.content.Context.activity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.activity()
+    else -> null
+}
+
+private fun hours(minutes: Long): String = if (minutes >= 60) "%.1f h".format(minutes / 60.0) else "$minutes min"
+
+private fun day(ms: Long): String = DateTimeFormatter.ofPattern(tr("M月d日", "MMM d")).format(Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()))
 
 /** 授权码：没有账户，授权码就是使用权。每个码有固定额度，用完换一个新码。 */
 @Composable
@@ -255,7 +341,13 @@ private fun LicenseCard(status: CloudStatus) {
     var busy by remember { mutableStateOf(false) }
     Card {
         Label(tr("授权码", "License code"))
-        if (!editing && current != null) {
+        if (!editing && current != null && current.startsWith("DS-")) {
+            // 订阅凭证由恢复购买自动管理，这里只提供改用授权码
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("正在使用订阅", "Using your subscription"), style = Type.Body, modifier = Modifier.weight(1f))
+                Pill(tr("改用授权码", "Use a code")) { editing = true; message = null }
+            }
+        } else if (!editing && current != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 只显示首尾，避免截屏时泄露完整授权码
                 Text(mask(current), style = Type.Headline, modifier = Modifier.weight(1f))
@@ -316,6 +408,7 @@ private fun OwnKeysPanel(actions: Actions) {
         } else {
             Text(
                 tr("在 Google Cloud 控制台创建服务账号，授予“Cloud Speech 客户端”角色（用 Vertex AI 整理时再加“Vertex AI 用户”），下载 JSON 密钥后导入。", "In the Google Cloud console, create a service account with the Cloud Speech Client role (add Vertex AI User for Vertex digests), download a JSON key and import it. ") +
+                    tr("费用由你的 Google Cloud 账号直接支付。", "Your Google Cloud account is billed directly."),
                 style = Type.Caption,
             )
         }
@@ -464,6 +557,5 @@ private fun Field(value: String, onChange: (String) -> Unit, placeholder: String
 
 private fun usd(micros: Long, digits: Int = 2): String = "\$" + "%.${digits}f".format(micros / 1_000_000.0)
 
-private fun Double.clean() = if (this % 1.0 == 0.0) toInt().toString() else toString()
 
 private fun stamp(ms: Long) = app.dayweave.ui.components.dateTime(ms)

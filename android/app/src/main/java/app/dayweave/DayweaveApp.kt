@@ -10,6 +10,7 @@ import app.dayweave.ai.digestModel
 import app.dayweave.capture.CallRecordings
 import app.dayweave.capture.SpeechDetector
 import app.dayweave.cloud.CloudApi
+import app.dayweave.cloud.PlayStore
 import app.dayweave.core.ArchiveStore
 import app.dayweave.core.ServiceMode
 import app.dayweave.core.Settings
@@ -31,6 +32,7 @@ class AppGraph(context: Context) {
     val voice = VoiceId(context, context.filesDir)
     val auth = GoogleAuth(File(context.filesDir, "google-sa.json"))
     val cloud = CloudApi(settings, scope)
+    val store = PlayStore(context, cloud, scope)
     private val chirp = ChirpClient(auth)
 
     /** 按当前的服务方式选择转写：拾日云，或用户自己的 Google Cloud。 */
@@ -87,6 +89,8 @@ class DayweaveApp : Application() {
         graph = AppGraph(this)
         app.dayweave.core.Lang.english = app.dayweave.core.Lang.resolve(graph.settings.language.value)
         graph.voice.relabel()
+        // 订阅每月续费后由 Google Play 核验新的周期：启动时悄悄把有效订阅再交给拾日云一次。
+        if (graph.settings.licenseCode?.startsWith("DS-") == true) graph.store.restore(quiet = true)
         app.dayweave.capture.showStandby(this)
     }
 }

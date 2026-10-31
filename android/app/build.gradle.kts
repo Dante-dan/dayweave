@@ -7,6 +7,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// 本机 local.properties（不进仓库）
+val localProps = rootProject.file("local.properties").takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } } ?: Properties()
+
+// 正式签名：local.properties 里 releaseSigning 指向仓库外的 signing.properties；没有就退回调试签名。
+val releaseSigning = localProps.getProperty("releaseSigning")?.let(::File)?.takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+
 android {
     namespace = "app.dayweave"
     compileSdk = 35
@@ -15,13 +23,20 @@ android {
         applicationId = "app.dayweave"
         minSdk = 31
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
         ndk { abiFilters += "arm64-v8a" }
         // 拾日云的地址：-PcloudUrl=… 优先，其次本机 local.properties 里的 cloudUrl（不进仓库）；都没有就是源码版，只能自带密钥。
-        val localCloud = rootProject.file("local.properties").takeIf { it.exists() }
-            ?.let { f -> Properties().apply { f.inputStream().use { load(it) } }.getProperty("cloudUrl") }
-        buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: localCloud ?: ""}\"")
+        buildConfigField("String", "CLOUD_URL", "\"${project.findProperty("cloudUrl") ?: localProps.getProperty("cloudUrl") ?: ""}\"")
+    }
+
+    signingConfigs {
+        if (releaseSigning != null) create("release") {
+            storeFile = File(releaseSigning.getProperty("storeFile"))
+            storePassword = releaseSigning.getProperty("storePassword")
+            keyAlias = releaseSigning.getProperty("keyAlias")
+            keyPassword = releaseSigning.getProperty("keyPassword")
+        }
     }
 
     buildTypes {
@@ -29,8 +44,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // 本地体验用调试签名；正式发布换成自己的签名。
-            signingConfig = signingConfigs.getByName("debug")
+            // -PdebugSigned：给已装调试签名版本的手机原地升级，不丢本地档案。
+            signingConfig = signingConfigs.findByName("release")?.takeUnless { project.hasProperty("debugSigned") }
+                ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -66,4 +82,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("dev.chrisbanes.haze:haze:1.1.1")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    implementation("com.android.billingclient:billing-ktx:8.3.0")
+    // Play Billing 间接带来旧版 fragment，会让 registerForActivityResult 出错，固定到新版
+    implementation("androidx.fragment:fragment:1.8.5")
 }
