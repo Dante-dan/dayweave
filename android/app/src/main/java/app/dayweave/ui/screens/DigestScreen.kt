@@ -284,6 +284,16 @@ private fun DigestPreview(d: DayDigest, updating: Boolean) {
                 }
             }
         }
+        d.advice.firstNotNullOfOrNull { a -> app.dayweave.ai.Assistant.of(a.assistant)?.let { it to a } }?.let { (who, a) ->
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(app.dayweave.ui.components.assistantIcon(who), null, tint = Ink.Pink, modifier = Modifier.padding(top = 2.dp).size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${who.label} · ${a.title.ifBlank { a.text }}" + if (d.advice.size > 1) tr("（共 ${d.advice.size} 条）", " (${d.advice.size} in all)") else "",
+                    style = Type.Caption.copy(color = Ink.Primary), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         if (d.topics.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 d.topics.take(5).forEachIndexed { i, topic -> TopicChip(topic, i) }

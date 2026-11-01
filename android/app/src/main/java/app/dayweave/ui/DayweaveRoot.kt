@@ -72,9 +72,15 @@ import app.dayweave.ui.motion.Glyph
 import app.dayweave.ui.motion.dayFrame
 import app.dayweave.ui.motion.drawDay
 import app.dayweave.ui.motion.drawTimeline
+import app.dayweave.ui.motion.drawSummary
+import app.dayweave.graph
 import app.dayweave.ui.motion.drawVoice
 import app.dayweave.ui.motion.blossomIcon
 import app.dayweave.ui.screens.CaptureScreen
+import app.dayweave.ui.screens.SummaryScreen
+import app.dayweave.ui.screens.LedgerScreen
+import app.dayweave.ui.screens.AssistantScreen
+import app.dayweave.ui.screens.ChatScreen
 import app.dayweave.ui.screens.ConversationScreen
 import app.dayweave.ui.screens.DayScreen
 import app.dayweave.ui.screens.DigestScreen
@@ -117,12 +123,16 @@ private sealed interface Route {
     data object Enroll : Route
     data object Service : Route
     data class Person(val id: String) : Route
+    data object Ledger : Route
+    data class Assistant(val id: String) : Route
+    data class Chat(val id: String) : Route
 }
 
 /** 底栏：选中与否用同一个描边图形，只靠颜色和光影区分。 */
 enum class Tab(val icon: ImageVector, private val zh: String, private val en: String) {
     DIGEST(blossomIcon(filled = false), "拾日", "Today"),
     TIMELINE(Icons.Outlined.ViewAgenda, "时间线", "Timeline"),
+    SUMMARY(Icons.Outlined.ViewAgenda, "总结", "Summary"),
     CAPTURE(Icons.Outlined.GraphicEq, "采集", "Capture"),
     ;
 
@@ -138,6 +148,11 @@ class Navigator(
     val openPerson: (String) -> Unit,
     val openTab: (Tab) -> Unit,
     val back: () -> Unit,
+    val openLedger: () -> Unit = {},
+    val openAssistant: (String) -> Unit = {},
+    val openChat: (String) -> Unit = {},
+    /** 新开一段助手对话；quote 是引用的内容，from 说明出处。 */
+    val startChat: (assistant: String, quote: String, from: String) -> Unit = { _, _, _ -> },
 )
 
 val LocalShared = compositionLocalOf<SharedTransitionScope?> { null }
@@ -163,6 +178,7 @@ fun Modifier.sharedSegment(key: String): Modifier = composed {
 
 @Composable
 fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<DeepLink?>) {
+    val chatEngine = androidx.compose.ui.platform.LocalContext.current.graph.chat
     var stack by rememberSaveable(stateSaver = RouteSaver) { mutableStateOf(listOf<Route>(Route.Tabs)) }
     var tab by rememberSaveable { mutableStateOf(Tab.DIGEST) }
     val route = stack.last()
@@ -174,6 +190,10 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
         openPerson = { stack = stack + Route.Person(it) },
         openTab = { tab = it },
         back = { if (stack.size > 1) stack = stack.dropLast(1) },
+        openLedger = { stack = stack + Route.Ledger },
+        openAssistant = { stack = stack + Route.Assistant(it) },
+        openChat = { stack = stack + Route.Chat(it) },
+        startChat = { assistant, quote, from -> stack = stack + Route.Chat(chatEngine.start(assistant, quote, from)) },
     )
     BackHandler(enabled = stack.size > 1) { nav.back() }
     val link by deepLinks.collectAsStateWithLifecycle()
@@ -214,9 +234,9 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                     (slideInVertically(tween(460, easing = FastOutSlowInEasing)) { it / 5 } + fadeIn(tween(320))) togetherWith fadeOut(tween(220))
                                 initialState is Route.Enroll ->
                                     fadeIn(tween(300)) togetherWith (slideOutVertically(tween(380)) { it / 5 } + fadeOut(tween(260)))
-                                targetState is Route.Service || targetState is Route.Person ->
+                                targetState is Route.Service || targetState is Route.Person || targetState is Route.Ledger || targetState is Route.Assistant || targetState is Route.Chat ->
                                     (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith fadeOut(tween(200))
-                                initialState is Route.Service || initialState is Route.Person ->
+                                initialState is Route.Service || initialState is Route.Person || initialState is Route.Ledger || initialState is Route.Assistant || initialState is Route.Chat ->
                                     fadeIn(tween(300)) togetherWith (slideOutHorizontally(tween(360)) { it / 4 } + fadeOut(tween(240)))
                                 targetState is Route.Day && initialState is Route.Tabs ->
                                     (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith
@@ -238,6 +258,9 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                 Route.Enroll -> EnrollScreen(nav, actions)
                                 Route.Service -> ServiceScreen(nav, actions)
                                 is Route.Person -> PersonScreen(r.id, nav)
+                                Route.Ledger -> LedgerScreen(nav)
+                                is Route.Assistant -> AssistantScreen(r.id, nav)
+                                is Route.Chat -> ChatScreen(r.id, nav)
                             }
                         }
                     }
@@ -273,6 +296,7 @@ private fun TabContent(tab: Tab, actions: Actions, nav: Navigator) {
         when (t) {
             Tab.DIGEST -> DigestScreen(nav)
             Tab.TIMELINE -> TimelineScreen(nav)
+            Tab.SUMMARY -> SummaryScreen(nav)
             Tab.CAPTURE -> CaptureScreen(nav, actions)
         }
     }
@@ -282,7 +306,7 @@ private fun TabContent(tab: Tab, actions: Actions, nav: Navigator) {
 @Composable
 private fun TabBar(tab: Tab, dayTime: Float, onTab: (Tab) -> Unit) {
     val recording by CaptureService.state.collectAsStateWithLifecycle()
-    val itemWidth = 96.dp
+    val itemWidth = 84.dp
     // 液态的高亮块：位置走弹簧，宽度随速度拉长（|v| 越大越长），停下时收回原宽，像一滴水滑过去。
     val density = androidx.compose.ui.platform.LocalDensity.current
     val itemPx = with(density) { itemWidth.toPx() }
@@ -330,6 +354,7 @@ private fun TabBar(tab: Tab, dayTime: Float, onTab: (Tab) -> Unit) {
                                 when (t) {
                                     Tab.DIGEST -> drawDay(alpha = a, frame = dayFrame(dayTime))
                                     Tab.TIMELINE -> drawTimeline(a)
+                                    Tab.SUMMARY -> drawSummary(a)
                                     Tab.CAPTURE -> drawVoice(a)
                                 }
                             }
@@ -352,6 +377,9 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
                 Route.Tabs -> "tabs"
                 Route.Enroll -> "enroll"
                 Route.Service -> "service"
+                Route.Ledger -> "ledger"
+                is Route.Assistant -> "a:${it.id}"
+                is Route.Chat -> "chat:${it.id}"
                 is Route.Conversation -> "c:${it.id}"
                 is Route.Day -> "d:${it.date}"
                 is Route.Person -> "p:${it.id}"
@@ -363,6 +391,9 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
             when {
                 it == "enroll" -> Route.Enroll
                 it == "service" -> Route.Service
+                it == "ledger" -> Route.Ledger
+                it.startsWith("a:") -> Route.Assistant(it.removePrefix("a:"))
+                it.startsWith("chat:") -> Route.Chat(it.removePrefix("chat:"))
                 it.startsWith("c:") -> Route.Conversation(it.removePrefix("c:"))
                 it.startsWith("d:") -> Route.Day(LocalDate.parse(it.removePrefix("d:")))
                 it.startsWith("p:") -> Route.Person(it.removePrefix("p:"))

@@ -84,8 +84,48 @@ struct DayDigest: Codable, Hashable {
     var followUps: [FollowUp]? = nil
     var insights: [Insight]? = nil
     var topics: [String]? = nil
+    var advice: [Advice]? = nil
     var sourceIds: [String]? = nil
     var generatedAt: Int64? = nil
+}
+
+/** 随身助手的一条建议：对话涉及育儿、健康、人际、理财、生活或人生体验时才出现。 */
+struct Advice: Codable, Hashable {
+    var assistant: String
+    var title: String? = nil
+    var text: String
+    var basis: String? = nil
+    var segmentIds: [String]? = nil
+
+    var label: String {
+        switch assistant {
+        case "parenting": tr("育儿助手", "Parenting")
+        case "health": tr("健康助手", "Health")
+        case "relationship": tr("人际助手", "Relationships")
+        case "finance": tr("理财助手", "Money")
+        case "life": tr("生活助手", "Life hacks")
+        case "work": tr("工作助手", "Work notes")
+        case "learning": tr("学习助手", "Learning")
+        case "occasions": tr("纪念日助手", "Occasions")
+        case "shopping": tr("购物清单", "Shopping list")
+        default: tr("人生体验助手", "Living well")
+        }
+    }
+
+    var icon: String {
+        switch assistant {
+        case "parenting": "figure.and.child.holdinghands"
+        case "health": "heart"
+        case "relationship": "person.2"
+        case "finance": "banknote"
+        case "life": "lightbulb"
+        case "work": "briefcase"
+        case "learning": "book"
+        case "occasions": "gift"
+        case "shopping": "bag"
+        default: "sparkles"
+        }
+    }
 }
 
 /** 主动提醒：从对话里发现的约定、闹钟和待办。 */

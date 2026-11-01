@@ -58,7 +58,8 @@ final class Digests {
     private func transcript(_ day: String, _ sources: [Segment]) -> String {
         let clock = DateFormatter()
         clock.dateFormat = "HH:mm"
-        var out = "日期：\(day)\n\n"
+        // iOS 暂时只开默认的六位助手（记账、衍生模块在安卓版上按需开启）
+        var out = "日期：\(day)\n启用的助手：parenting、health、relationship、finance、life、growth\n\n"
         for s in sources {
             let scene = s.scene.map { "，\($0.kind.doing)" } ?? ""
             out += "## 片段 \(s.id)（\(clock.string(from: s.start))–\(clock.string(from: Date(ms: s.endedAt)))，麦克风·\(s.device)\(scene)）\n"

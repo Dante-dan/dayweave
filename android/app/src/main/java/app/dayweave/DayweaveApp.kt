@@ -65,11 +65,24 @@ class AppGraph(context: Context) {
         scope = scope,
     )
 
+    /** 账本：记账助手听到的消费 + 手记。 */
+    val ledger = app.dayweave.ai.Ledger(context.filesDir)
+
     val digest = DigestEngine(
         archive = archive,
         model = { digestModel },
         people = { voice.people.value },
+        assistants = { settings.assistants.value },
+        onDigest = { date, d -> if (app.dayweave.ai.Assistant.BOOKKEEPING in settings.assistants.value) ledger.absorb(date, d.expenses) },
         root = context.filesDir,
+        scope = scope,
+    )
+
+    val chat = app.dayweave.ai.ChatEngine(
+        root = context.filesDir,
+        model = { digestModel },
+        digests = { digest.digests.value },
+        ledger = ledger,
         scope = scope,
     )
 }

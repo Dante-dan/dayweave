@@ -9,3 +9,14 @@ export const pricing = {
 export function costFor(seconds, priceMicrosPerMinute = pricing.priceMicrosPerMinute) {
   return Math.ceil((seconds * priceMicrosPerMinute) / 60)
 }
+
+// 后台核算用的上游成本，只在服务端 .env 里配置；不出现在任何公开接口。
+const env = (name) => Number(process.env[name] || 0)
+export const costs = {
+  sttMicrosPerMinute: env('COST_STT_MICROS_PER_MINUTE'),
+  llmInMicrosPerMillion: env('COST_LLM_IN_MICROS_PER_MTOK'),
+  llmOutMicrosPerMillion: env('COST_LLM_OUT_MICROS_PER_MTOK'),
+}
+export const sttCost = (seconds) => Math.ceil((seconds * costs.sttMicrosPerMinute) / 60)
+export const llmCost = (tokensIn, tokensOut) =>
+  Math.ceil((tokensIn * costs.llmInMicrosPerMillion + tokensOut * costs.llmOutMicrosPerMillion) / 1e6)

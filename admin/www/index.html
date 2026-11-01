@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>拾日后台</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/app.js" defer></script>
+</head>
+<body>
+  <main id="login" class="login" hidden>
+    <form id="login-form" class="glass login-card" autocomplete="off">
+      <div class="mark"></div>
+      <h1>拾日后台</h1>
+      <p class="muted">输入 128 位管理密码</p>
+      <input id="password" type="password" autocomplete="current-password" spellcheck="false" aria-label="管理密码" required>
+      <button type="submit" class="primary">登录</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </main>
+
+  <main id="app" hidden>
+    <header class="bar">
+      <div class="brand"><div class="mark small"></div><strong>拾日后台</strong></div>
+      <nav class="tabs" role="tablist">
+        <button data-tab="overview" class="active">概览</button>
+        <button data-tab="licenses">授权码</button>
+        <button data-tab="create">生成授权码</button>
+      </nav>
+      <button id="logout" class="ghost">退出</button>
+    </header>
+
+    <section id="tab-overview" class="tab">
+      <div id="cards" class="cards"></div>
+      <div class="glass panel">
+        <div class="panel-head"><h2>近 30 天</h2><span class="legend"><i class="sw charged"></i>用户计费 <i class="sw cost"></i>API 成本</span></div>
+        <div id="chart" class="chart"></div>
+      </div>
+      <div class="glass panel">
+        <h2>本月按用途</h2>
+        <table class="table" id="by-kind"></table>
+      </div>
+    </section>
+
+    <section id="tab-licenses" class="tab" hidden>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="搜索：粘贴授权码、末段、标签或备注">
+        <select id="filter">
+          <option value="all">全部</option>
+          <option value="active">使用中</option>
+          <option value="code">授权码</option>
+          <option value="subscription">订阅</option>
+          <option value="disabled">已废弃</option>
+        </select>
+        <button id="reload" class="ghost">刷新</button>
+      </div>
+      <div class="glass panel scroll"><table class="table" id="license-table"></table></div>
+    </section>
+
+    <section id="tab-create" class="tab" hidden>
+      <form id="create-form" class="glass panel form">
+        <h2>生成授权码</h2>
+        <p class="muted">授权码在你的浏览器里生成，明文只显示这一次；服务器只保存哈希。</p>
+        <div class="grid">
+          <label>数量<input name="count" type="number" min="1" max="200" value="1" required></label>
+          <label>标签<input name="label" placeholder="例如 sale-2026-11" maxlength="80"></label>
+          <label>单价（美元 / 分钟人声）<input name="price" type="number" step="0.0001" min="0.0001" placeholder="留空 = 当前标准单价"></label>
+          <label>额度方式
+            <select name="mode"><option value="usd">按金额</option><option value="minutes">按分钟</option></select>
+          </label>
+          <label id="grant-usd">额度（美元）<input name="usd" type="number" step="0.01" min="0.01" value="20"></label>
+          <label id="grant-minutes" hidden>额度（分钟人声）<input name="minutes" type="number" step="1" min="1" value="240"></label>
+          <label>售价（美元，用于核算收入）<input name="sale" type="number" step="0.01" min="0" placeholder="留空 = 等于额度"></label>
+          <label class="wide">备注<input name="note" maxlength="500" placeholder="卖给谁、渠道等"></label>
+        </div>
+        <p id="create-preview" class="muted"></p>
+        <button type="submit" class="primary">生成</button>
+        <p id="create-error" class="error" role="alert"></p>
+      </form>
+      <div id="created" class="glass panel" hidden>
+        <div class="panel-head"><h2>新授权码</h2><span class="warn">离开页面后无法再次查看明文</span></div>
+        <pre id="created-codes" class="codes"></pre>
+        <div class="row"><button id="copy-codes" class="primary">复制全部</button><button id="download-codes" class="ghost">下载 CSV</button></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="detail" class="glass">
+    <div class="panel-head"><h2 id="detail-title">授权码</h2><button id="detail-close" class="ghost" aria-label="关闭">关闭</button></div>
+    <div id="detail-body"></div>
+  </dialog>
+</body>
+</html>

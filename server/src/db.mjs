@@ -70,6 +70,47 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS subscriptions_license ON subscriptions(license);
 `)
 
+// 后台需要的账目：每笔用量的 API 成本、模型 token；授权码的备注、末段提示（后台生成的码才有）；每个码用过的设备。
+for (const [table, column, type] of [
+  ['usage', 'cost_micros', 'INTEGER NOT NULL DEFAULT 0'],
+  ['usage', 'tokens_in', 'INTEGER NOT NULL DEFAULT 0'],
+  ['usage', 'tokens_out', 'INTEGER NOT NULL DEFAULT 0'],
+  ['usage', 'device', 'TEXT'],
+  ['licenses', 'note', "TEXT NOT NULL DEFAULT ''"],
+  ['licenses', 'hint', "TEXT NOT NULL DEFAULT ''"],
+  ['licenses', 'sale_micros', 'INTEGER'],
+  ['licenses', 'disabled_at', 'INTEGER'],
+]) {
+  if (!db.prepare(`SELECT 1 FROM pragma_table_info('${table}') WHERE name = ?`).get(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devices (
+    license TEXT NOT NULL,
+    device TEXT NOT NULL,
+    platform TEXT NOT NULL DEFAULT '',
+    estimated INTEGER NOT NULL DEFAULT 0,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    requests INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (license, device)
+  );
+  CREATE INDEX IF NOT EXISTS usage_at ON usage(at);
+`)
+
+/** 记下这个授权码在哪台设备上用。新版 App 带安装标识；旧版没有，就用来源和 UA 估一个（estimated）。 */
+export function touchDevice(license, device, platform, estimated) {
+  const now = Date.now()
+  db.prepare(`INSERT INTO devices (license, device, platform, estimated, first_seen, last_seen, requests) VALUES (?, ?, ?, ?, ?, ?, 1)
+    ON CONFLICT(license, device) DO UPDATE SET last_seen = excluded.last_seen, platform = excluded.platform, requests = requests + 1`)
+    .run(license, device, platform || '', estimated ? 1 : 0, now, now)
+}
+
+/** 记一笔不扣费的用量（AI 整理、提醒、对话），只为后台核算成本。 */
+export function recordUsage(hash, kind, { seconds = 0, micros = 0, costMicros = 0, tokensIn = 0, tokensOut = 0, device = null } = {}) {
+  db.prepare('INSERT INTO usage (license, at, kind, seconds, micros, cost_micros, tokens_in, tokens_out, device) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(hash, Date.now(), kind, seconds, micros, costMicros, tokensIn, tokensOut, device)
+}
+
 /** 授权码规范化：去掉空格和连字符、转大写。“dw-abcd efgh” 与 “DWABCDEFGH” 是同一个码。 */
 export const normalize = (code) => String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
 export const hashOf = (code) => createHash('sha256').update(normalize(code)).digest('hex')
@@ -89,7 +130,7 @@ export function licenseFor(code) {
 }
 
 /** 扣费并记账。余额不足时返回 false，不扣。 */
-export function charge(hash, seconds, micros) {
+export function charge(hash, seconds, micros, costMicros = 0, device = null) {
   db.exec('BEGIN IMMEDIATE')
   try {
     const row = db.prepare('SELECT balance_micros FROM licenses WHERE hash = ?').get(hash)
@@ -100,7 +141,8 @@ export function charge(hash, seconds, micros) {
     const now = Date.now()
     db.prepare('UPDATE licenses SET balance_micros = balance_micros - ?, last_used_at = ?, first_used_at = COALESCE(first_used_at, ?) WHERE hash = ?')
       .run(micros, now, now, hash)
-    db.prepare('INSERT INTO usage (license, at, kind, seconds, micros) VALUES (?, ?, ?, ?, ?)').run(hash, now, 'transcribe', seconds, micros)
+    db.prepare('INSERT INTO usage (license, at, kind, seconds, micros, cost_micros, device) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(hash, now, 'transcribe', seconds, micros, costMicros, device)
     db.exec('COMMIT')
     return true
   } catch (e) {
@@ -174,7 +216,7 @@ export function summary(license) {
   const used = db.prepare(
     'SELECT COALESCE(SUM(seconds), 0) AS seconds, COALESCE(SUM(micros), 0) AS micros FROM usage WHERE license = ? AND at >= ?',
   ).get(license.hash, since)
-  const ledger = db.prepare('SELECT at, kind, seconds, micros FROM usage WHERE license = ? ORDER BY at DESC LIMIT 30').all(license.hash)
+  const ledger = db.prepare("SELECT at, kind, seconds, micros FROM usage WHERE license = ? AND kind = 'transcribe' ORDER BY at DESC LIMIT 30").all(license.hash)
     .map((r) => ({ ...r, micros: -r.micros }))
   return {
     label: license.label,

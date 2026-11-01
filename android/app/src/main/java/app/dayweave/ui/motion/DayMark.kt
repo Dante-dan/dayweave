@@ -206,6 +206,19 @@ fun DrawScope.drawTimeline(alpha: Float) {
     card(s * 0.57f, Hue.Peach)
 }
 
+/** 总结：四块归类的小方格，各一种颜色，像把日子分门别类。 */
+fun DrawScope.drawSummary(alpha: Float) {
+    val s = size.minDimension
+    val stroke = Stroke(s * 0.085f, cap = StrokeCap.Round)
+    val r = androidx.compose.ui.geometry.CornerRadius(s * 0.09f)
+    val cell = s * 0.32f
+    listOf(Offset(s * 0.14f, s * 0.14f) to Hue.Rose, Offset(s * 0.54f, s * 0.14f) to Hue.Sky, Offset(s * 0.14f, s * 0.54f) to Hue.Gold, Offset(s * 0.54f, s * 0.54f) to Hue.Lilac)
+        .forEachIndexed { i, (o, c) ->
+            if (i == 0) drawRoundRect(c, o, Size(cell, cell), r, alpha = alpha)
+            else drawRoundRect(c, o, Size(cell, cell), r, alpha = alpha, style = stroke)
+        }
+}
+
 /** 采集：五根声纹柱，每根一种颜色，高度像一句话的起伏。 */
 fun DrawScope.drawVoice(alpha: Float, levels: FloatArray = floatArrayOf(0.32f, 0.62f, 0.86f, 0.54f, 0.28f)) {
     val s = size.minDimension

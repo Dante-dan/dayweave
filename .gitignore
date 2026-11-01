@@ -68,3 +68,7 @@ node_modules/
 
 # 商店截图（体积大，本地保留）
 /store-assets/
+
+# 后台的本地状态（密码哈希、管理令牌、锁定记录）只在服务器上
+/admin/config.json
+/admin/lockout.json

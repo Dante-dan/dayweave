@@ -56,6 +56,19 @@ class Settings(context: Context) {
         _standby.value = enabled
     }
 
+    private val _assistants = MutableStateFlow(
+        prefs.getStringSet("assistants", null)?.mapNotNull(app.dayweave.ai.Assistant::of)?.toSet()
+            ?: app.dayweave.ai.Assistant.defaults,
+    )
+    /** 打开的随身助手。默认全开，只在对话涉及时才出场。 */
+    val assistants: StateFlow<Set<app.dayweave.ai.Assistant>> = _assistants
+
+    fun setAssistant(assistant: app.dayweave.ai.Assistant, enabled: Boolean) {
+        val next = if (enabled) _assistants.value + assistant else _assistants.value - assistant
+        prefs.edit().putStringSet("assistants", next.map { it.id }.toSet()).apply()
+        _assistants.value = next
+    }
+
     private val _theme = MutableStateFlow(
         prefs.getString("theme", null)?.let { runCatching { app.dayweave.ui.theme.ThemeMode.valueOf(it) }.getOrNull() }
             ?: app.dayweave.ui.theme.ThemeMode.SYSTEM,
@@ -95,6 +108,11 @@ class Settings(context: Context) {
         ),
     )
     val ai: StateFlow<AiConfig> = _ai
+
+    /** 本次安装的随机标识，拾日云据此统计一个授权码在几台设备上使用。重装后会变。 */
+    val installId: String by lazy {
+        prefs.getString("install_id", null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString("install_id", it).apply() }
+    }
 
     /** 拾日云授权码：凭证本身，只存在本机。 */
     var licenseCode: String?

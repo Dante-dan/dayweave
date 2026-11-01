@@ -17,12 +17,21 @@ import android.os.PowerManager
 import android.service.quicksettings.TileService
 import app.dayweave.MainActivity
 import app.dayweave.R
+import app.dayweave.core.InputSelection
 import app.dayweave.core.Scene
 import app.dayweave.core.SourceKind
 import app.dayweave.graph
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.io.File
 import app.dayweave.core.tr
 import app.dayweave.core.deviceLabel
@@ -76,6 +85,10 @@ class CaptureService : Service() {
     }
 
     private var mic: MicInput? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var inputWatch: Job? = null
+    /** 当前麦克风对应的选择。暂停中改了选择，继续时用新的。 */
+    private var micSelection: InputSelection? = null
     private var scene: AudioScene? = null
     private var detector: SpeechDetector? = null
     private var wakeLock: PowerManager.WakeLock? = null
@@ -128,6 +141,7 @@ class CaptureService : Service() {
 
     override fun onDestroy() {
         stopCapture()
+        scope.cancel()
         super.onDestroy()
     }
 
@@ -151,8 +165,27 @@ class CaptureService : Service() {
         }.also { it.start() }
         _state.value = CaptureState(running = true, startedAt = System.currentTimeMillis(), micName = selection.name)
         startMic()
+        // 记录中也能换麦克风：手机麦克风、各个蓝牙设备之间随时切换。
+        inputWatch = scope.launch {
+            graph.settings.input.filterNotNull().distinctUntilChanged().collect { if (it != micSelection) switchMic(it) }
+        }
         main.post(ticker)
         requestTileUpdate()
+    }
+
+    /** 换到新的麦克风：当前这段话在切换处收尾提交，新设备就绪后接着听。暂停中只记下选择，继续时生效。 */
+    private fun switchMic(selection: InputSelection) {
+        if (!_state.value.running || _state.value.paused) return
+        mic?.stop()
+        mic = null
+        _state.update {
+            it.copy(
+                micName = selection.name, micReady = false, micLevel = -90.0, micSpeaking = false, yielded = false, silenced = false,
+                notice = tr("已切换到 ${deviceLabel(selection.name)}", "Switched to ${deviceLabel(selection.name)}"),
+            )
+        }
+        startMic()
+        refreshNotification()
     }
 
     private fun startMic() {
@@ -168,6 +201,7 @@ class CaptureService : Service() {
             device = { input.routedName },
             scene = { s.current.value },
         ) { segment, file -> graph.pipeline.submit(segment, file) }
+        micSelection = selection
         input = MicInput(this, selection, segmenter, s) { notice -> _state.update { it.copy(notice = notice) } }
         mic = input.also { it.start() }
     }
@@ -192,8 +226,11 @@ class CaptureService : Service() {
     private fun stopCapture() {
         if (!_state.value.running) return
         main.removeCallbacks(ticker)
+        inputWatch?.cancel()
+        inputWatch = null
         mic?.stop()
         mic = null
+        micSelection = null
         scene?.stop()
         scene = null
         detector?.release()

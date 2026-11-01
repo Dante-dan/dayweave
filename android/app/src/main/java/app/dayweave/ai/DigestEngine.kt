@@ -32,6 +32,21 @@ data class Cited(val text: String, val segmentIds: List<String> = emptyList())
 @Serializable
 data class FollowUp(val text: String, val owner: String = "unclear", val segmentIds: List<String> = emptyList())
 
+/** 随身助手的一条建议。assistant 是 [Assistant.id]，basis 是依据的机构或指南。 */
+@Serializable
+data class Advice(val assistant: String, val title: String = "", val text: String, val basis: String = "", val segmentIds: List<String> = emptyList())
+
+/** 记账助手听到的一笔消费。 */
+@Serializable
+data class SpokenExpense(
+    val amount: Double,
+    val currency: String = "",
+    val purpose: String,
+    val category: String = "other",
+    val time: String = "",
+    val segmentIds: List<String> = emptyList(),
+)
+
 @Serializable
 data class Insight(val text: String, val kind: String = "inference", val segmentIds: List<String> = emptyList())
 
@@ -46,6 +61,8 @@ data class DayDigest(
     val followUps: List<FollowUp> = emptyList(),
     val insights: List<Insight> = emptyList(),
     val topics: List<String> = emptyList(),
+    val advice: List<Advice> = emptyList(),
+    val expenses: List<SpokenExpense> = emptyList(),
     val sourceIds: List<String> = emptyList(),
     val generatedAt: Long = 0,
     val model: String = "",
@@ -71,19 +88,40 @@ private const val SYSTEM = """你是“拾日”的私人秘书。输入是用�
    - 有人找用户、又和时间或约定有关时，放进 followUps，并在 text 里写明时间。
    - 麦克风在通话或开会时只录到用户这一侧，不要假装知道对方说了什么；来源是“通话录音”的片段双方都有。
    - 单纯的听音乐、看视频不必写成经历，除非和当天的对话有关；可以在 summary 里轻轻带过。
-8. 用简体中文输出，英文术语、人名、产品名保留原文。没有值得写的内容就少写，不要凑数。
+9. 随身助手（advice）按需出场：只有当天的对话真的涉及某个领域（遇到的困扰、提出的疑问、正在做的打算）才给，没有就返回空数组，绝不凑数。输入开头有“启用的助手”时只用其中列出的，写“无”就不给；没有这一行时都可以用。
+   - parenting 育儿：遵循循证医学，以美国儿科学会（AAP）的建议为准，例如睡眠、喂养、发热、屏幕时间、情绪与管教。
+   - health 健康：遵循循证医学，依据梅奥诊所（Mayo Clinic）、WHO、《柳叶刀》等权威指南，例如睡眠、运动、饮食、压力、慢病管理。
+   - relationship 人际：改善亲密关系和家庭关系，用有研究支持的沟通方法（例如 Gottman 关系研究、非暴力沟通）；就事论事，不评判对错，不给任何人贴标签。
+   - finance 理财：只讲通用原则（应急金、分散、长期、低费率、先还高息负债、量入为出），不推荐具体股票、基金、币种或买卖时机。
+   - life 生活：和对话里遇到的具体麻烦有关的生活小妙招，简单、马上能用。
+   - growth 人生体验：帮用户把日子过得更有意思、更有收获，例如把聊到的想法落地、更好地学习和复盘、留出陪伴与尝试新体验的时间。
+   - work 工作：会议或工作讨论里的结论、分工和下一步，整理成一两条可以直接执行的事。
+   - learning 学习：对话里提到、用户可能不熟的概念、书或术语，用一两句讲清楚，再给一个继续了解的方向。
+   - occasions 纪念日：家人朋友提到的生日、纪念日、喜好和心愿，提醒用户记住，并给一个贴心的小建议（例如送礼灵感）。
+   - shopping 购物：对话里说到要买、缺了、用完了的东西，汇总成清单式的一条（text 用顿号分隔物品）。
+   - bookkeeping 记账：不写进 advice，见第 10 条。
+   每条一件事：title 不超过 12 个字；text 1-3 句，具体可做，像一位懂行的朋友，不说教；segmentIds 写明是哪段对话引出的。
+   basis 写依据的机构、指南或研究名称，例如“美国儿科学会（AAP）”“WHO 身体活动指南”。只写你确定存在的共识，不编造文章标题、链接或数字；健康、育儿找不到可靠依据就不写。
+   健康和育儿只做一般性建议，不诊断、不给药物剂量；对话里出现高热不退、呼吸困难、胸痛、婴儿精神差等危险信号时，text 里明确写“尽快就医”。
+10. 记账（expenses）：启用的助手里有 bookkeeping（或没有“启用的助手”这一行）时才填，否则返回空数组。
+   只记用户本人（或替家里）已经付了的钱：amount 是数字；currency 用 ISO 代码，没说币种时中文对话默认 CNY；
+   purpose 写买了什么、为了什么，例如“给孩子买退烧药”；category 从枚举里选；time 写 HH:mm，不确定就不写；segmentIds 写依据的片段。
+   只是打算买、别人花的钱、讨论价格、金额没听清的，都不记。
+11. 用简体中文输出，英文术语、人名、产品名保留原文。没有值得写的内容就少写，不要凑数。
 headline 不超过 18 个字，像一个好的日记标题；summary 2-4 句。"""
 
 private val SCHEMA = Json.parseToJsonElement(
     """
-    {"type":"OBJECT","required":["headline","summary"],"properties":{
+    {"type":"OBJECT","required":["headline","summary","highlights","decisions","followUps","insights","topics","advice","expenses"],"properties":{
       "headline":{"type":"STRING"},
       "summary":{"type":"STRING"},
       "highlights":{"type":"ARRAY","items":{"type":"OBJECT","required":["text"],"properties":{"text":{"type":"STRING"},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}},
       "decisions":{"type":"ARRAY","items":{"type":"OBJECT","required":["text"],"properties":{"text":{"type":"STRING"},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}},
       "followUps":{"type":"ARRAY","items":{"type":"OBJECT","required":["text","owner"],"properties":{"text":{"type":"STRING"},"owner":{"type":"STRING","enum":["me","other","unclear"]},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}},
       "insights":{"type":"ARRAY","items":{"type":"OBJECT","required":["text","kind"],"properties":{"text":{"type":"STRING"},"kind":{"type":"STRING","enum":["fact","inference","suggestion"]},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}},
-      "topics":{"type":"ARRAY","items":{"type":"STRING"}}
+      "topics":{"type":"ARRAY","items":{"type":"STRING"}},
+      "advice":{"type":"ARRAY","items":{"type":"OBJECT","required":["assistant","text"],"properties":{"assistant":{"type":"STRING","enum":["parenting","health","relationship","finance","life","growth","work","learning","occasions","shopping"]},"title":{"type":"STRING"},"text":{"type":"STRING"},"basis":{"type":"STRING"},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}},
+      "expenses":{"type":"ARRAY","items":{"type":"OBJECT","required":["amount","purpose","category"],"properties":{"amount":{"type":"NUMBER"},"currency":{"type":"STRING"},"purpose":{"type":"STRING"},"category":{"type":"STRING","enum":["food","transport","shopping","housing","health","kids","education","entertainment","social","travel","other"]},"time":{"type":"STRING"},"segmentIds":{"type":"ARRAY","items":{"type":"STRING"}}}}}
     }}
     """,
 )
@@ -99,6 +137,9 @@ class DigestEngine(
     private val archive: ArchiveStore,
     private val model: () -> DigestModel,
     private val people: () -> Map<String, Person>,
+    private val assistants: () -> Set<Assistant>,
+    /** 新整理生成后回调，例如把记账助手听到的消费并进账本。 */
+    private val onDigest: (LocalDate, DayDigest) -> Unit = { _, _ -> },
     root: File,
     private val scope: CoroutineScope,
 ) {
@@ -170,6 +211,7 @@ class DigestEngine(
             )
             File(dir, "$date.json").writeText(json.encodeToString(DayDigest.serializer(), digest))
             _digests.update { it + (date to digest) }
+            runCatching { onDigest(date, digest) }
             setState(date, DigestState.Idle)
         } catch (e: HttpException) {
             Log.w("Dayweave", "digest $date failed", e)
@@ -204,7 +246,8 @@ class DigestEngine(
         val at = { ms: Long -> clock.format(Instant.ofEpochMilli(ms)) }
         val spans = archive.listening.value.filter { dayOf(it.startedAt) == date }.sortedBy { it.startedAt }
         return buildString {
-            append("日期：$date\n\n")
+            append("日期：$date\n")
+            append(assistantsLine(assistants()) + "\n\n")
             if (spans.isNotEmpty()) {
                 append("## 场景（只有时间和来源，没有录音）\n")
                 for (l in spans) append("- ${at(l.startedAt)}–${at(l.endedAt)} ${describe(l)}\n")

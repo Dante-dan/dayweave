@@ -124,7 +124,12 @@ final class CloudAPI {
     nonisolated private static func request(_ method: String, _ path: String, body: [String: String]? = nil, code: String? = nil, timeout: TimeInterval = 20) async throws -> Data {
         var req = URLRequest(url: URL(string: base + path)!, timeoutInterval: timeout)
         req.httpMethod = method
-        if let code { req.setValue("Bearer \(code)", forHTTPHeaderField: "Authorization") }
+        if let code {
+            req.setValue("Bearer \(code)", forHTTPHeaderField: "Authorization")
+            // 安装标识只用于统计一个授权码在几台设备上使用
+            req.setValue(installId, forHTTPHeaderField: "X-Dayweave-Device")
+            req.setValue("ios", forHTTPHeaderField: "X-Dayweave-Platform")
+        }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -138,3 +143,12 @@ final class CloudAPI {
         return data
     }
 }
+
+/** 本次安装的随机标识（重装后会变），拾日云据此统计一个授权码在几台设备上使用。 */
+let installId: String = {
+    let key = "dayweave.installId"
+    if let id = UserDefaults.standard.string(forKey: key) { return id }
+    let id = UUID().uuidString
+    UserDefaults.standard.set(id, forKey: key)
+    return id
+}()

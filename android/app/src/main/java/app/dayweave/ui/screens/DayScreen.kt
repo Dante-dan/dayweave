@@ -63,7 +63,7 @@ import java.util.Locale
 import app.dayweave.core.tr
 
 /** 带来源的一条结论。 */
-private data class Line(val text: String, val ids: List<String>, val tag: String? = null)
+private data class Line(val text: String, val ids: List<String>, val tag: String? = null, val title: String? = null, val note: String? = null, val assistant: String = app.dayweave.ai.GENERAL_ASSISTANT)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -129,6 +129,10 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                 tr("要跟进", "Follow up") to digest.followUps.map {
                     Line(it.text, it.segmentIds, when (it.owner) { "me" -> tr("我", "Me"); "other" -> tr("对方", "Them"); else -> tr("待确认", "Unclear") })
                 },
+                tr("随身助手", "Assistants") to digest.advice.mapNotNull { a ->
+                    val who = app.dayweave.ai.Assistant.of(a.assistant) ?: return@mapNotNull null
+                    Line(a.text, a.segmentIds, who.label, title = a.title.ifBlank { null }, note = a.basis.ifBlank { null }?.let { tr("依据：$it", "Source: $it") }, assistant = a.assistant)
+                },
                 tr("做了的决定", "Decisions") to digest.decisions.map { Line(it.text, it.segmentIds) },
                 tr("今天的经历", "What happened") to digest.highlights.map { Line(it.text, it.segmentIds) },
                 tr("值得留意", "Worth noticing") to digest.insights.map {
@@ -136,7 +140,7 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                 },
             ).filter { it.second.isNotEmpty() }
             sections.forEachIndexed { i, (title, lines) ->
-                item("s-$title") { Section(title, lines, i, byId, nav) }
+                item("s-$title") { Section(title, lines, i, byId, nav, "$date $title") }
             }
         }
 
@@ -168,7 +172,7 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Section(title: String, lines: List<Line>, order: Int, byId: Map<String, Segment>, nav: Navigator) {
+private fun Section(title: String, lines: List<Line>, order: Int, byId: Map<String, Segment>, nav: Navigator, from: String) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         delay(140L + order * 80L)
@@ -187,12 +191,15 @@ private fun Section(title: String, lines: List<Line>, order: Int, byId: Map<Stri
                 Box(Modifier.padding(top = 7.dp).size(7.dp).clip(CircleShape).background(Ink.StoryBrush))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    line.title?.let { Text(it, style = Type.Headline) }
                     Text(line.text, style = Type.Body)
+                    line.note?.let { Text(it, style = Type.Micro.copy(color = Ink.Secondary)) }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         line.tag?.let { Tag(it, filled = true) }
                         line.ids.mapNotNull(byId::get).forEach { s ->
                             Tag(tr("${clock(s.startedAt)} 原文", "${clock(s.startedAt)} source"), onClick = { nav.openConversation(s.id) })
                         }
+                        Tag(tr("引用提问", "Ask"), onClick = { nav.startChat(line.assistant, listOfNotNull(line.title, line.text).joinToString("：") , from) })
                     }
                 }
             }

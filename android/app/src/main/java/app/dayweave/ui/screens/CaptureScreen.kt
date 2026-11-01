@@ -102,6 +102,7 @@ import app.dayweave.ui.motion.bloomTap
 import app.dayweave.capture.CaptureState
 import app.dayweave.capture.InputOption
 import app.dayweave.capture.listInputs
+import app.dayweave.ui.components.assistantIcon
 import app.dayweave.graph
 import app.dayweave.ui.Actions
 import app.dayweave.ui.Navigator
@@ -193,13 +194,15 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
                 icon = if (bluetooth) Icons.Outlined.Headphones else Icons.Outlined.MicNone,
                 title = tr("麦克风", "Microphone"),
                 subtitle = when {
+                    capture.running && bluetooth && capture.yielded ->
+                        tr("${input?.name} 正忙，暂用手机麦克风 · 空闲后自动接回 · 轻触切换", "${input?.name} is busy, using the phone mic · switches back when idle · tap to change")
+                    capture.running -> tr("正在使用 ${deviceLabel(capture.micName ?: input?.name ?: "手机麦克风")} · 记录中也可以轻触切换", "Using ${deviceLabel(capture.micName ?: input?.name ?: "手机麦克风")} · tap to switch, even while recording")
                     input == null -> tr("手机麦克风 · 不影响耳机里的音乐和通话", "Phone mic · leaves your music and calls alone")
                     bluetooth -> tr("${input?.name} · 有其他声音时自动让出，改用手机麦克风", "${input?.name} · steps aside for other audio and uses the phone mic")
                     else -> tr("${deviceLabel(input!!.name)} · 不影响耳机里的音乐和通话", "${deviceLabel(input!!.name)} · leaves your music and calls alone")
                 },
                 trailing = { Chevron() },
                 onClick = { actions.requestMicPermission { showInputs = true } },
-                enabled = !capture.running,
             )
             Divider()
             Item(
@@ -275,6 +278,37 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             }
         }
 
+        Group(tr("随身助手", "Assistants")) {
+            val assistants by graph.settings.assistants.collectAsStateWithLifecycle()
+            Text(
+                tr("每天整理时，对话聊到相关的事，对应的助手才出场，给一两条有依据的建议；没聊到就不打扰。",
+                    "When the day is written, an assistant speaks up only if your conversations touched its area, with a suggestion or two and where the advice comes from."),
+                style = Type.Caption, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            app.dayweave.ai.Assistant.entries.forEach { a ->
+                if (!a.defaultOn && a == app.dayweave.ai.Assistant.entries.first { !it.defaultOn }) {
+                    Divider()
+                    Text(
+                        tr("按需开启 · 下面这些默认关闭，需要时再打开", "On demand · these start off; turn on what you need"),
+                        style = Type.Micro.copy(color = Ink.Secondary), modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp),
+                    )
+                }
+                Divider()
+                val on = a in assistants
+                Item(
+                    icon = assistantIcon(a),
+                    title = a.label,
+                    subtitle = a.note,
+                    trailing = { GlassSwitch(on, enabled = true) { graph.settings.setAssistant(a, it) } },
+                    onClick = { graph.settings.setAssistant(a, !on) },
+                )
+            }
+            Text(
+                tr("建议仅供参考，不能代替医生、律师或理财顾问的专业意见。", "Suggestions are for reference only and don't replace a doctor, lawyer or financial adviser."),
+                style = Type.Micro, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
+
         Group(tr("主人声纹", "Your voice")) {
             Item(
                 icon = Icons.Outlined.Fingerprint,
@@ -314,7 +348,7 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
             Item(
                 icon = Icons.Outlined.DeleteSweep,
                 title = tr("删除全部档案", "Delete all records"),
-                subtitle = tr("文字、场景记录、整理和匿名说话人都会清除，声纹保留", "Removes transcripts, scenes, digests and unnamed speakers. Your voiceprint is kept"),
+                subtitle = tr("文字、场景记录、整理、账本、助手对话和匿名说话人都会清除，声纹保留", "Removes transcripts, scenes, digests, ledger, assistant chats and unnamed speakers. Your voiceprint is kept"),
                 trailing = {}, onClick = { confirmWipe = true }, danger = true,
             )
         }
@@ -338,6 +372,8 @@ fun CaptureScreen(nav: Navigator, actions: Actions) {
                     graph.archive.deleteAll()
                     graph.voice.forgetPeople()
                     graph.digest.clear()
+                    graph.ledger.clear()
+                    graph.chat.clear()
                 }) { Text(tr("删除", "Delete"), color = Ink.Danger, fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text(tr("取消", "Cancel"), color = Ink.Primary) } },
@@ -538,7 +574,10 @@ private fun InputSheet(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val settings = context.graph.settings
     val selected by settings.input.collectAsStateWithLifecycle()
+    val capture by CaptureService.state.collectAsStateWithLifecycle()
     var options by remember { mutableStateOf(listInputs(context)) }
+    // 记录中没选过时，实际在用的是第一个可选项（手机麦克风）。
+    val current = selected ?: options.firstOrNull()?.selection
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -551,13 +590,27 @@ private fun InputSheet(onDismiss: () -> Unit) {
                 Icon(Icons.Outlined.Refresh, tr("刷新", "Refresh"), modifier = Modifier.pressable({ options = listInputs(context) }).padding(6.dp))
             }
             Text(
-                "手机麦克风最安静，完全不影响耳机。蓝牙耳机的麦克风要借用通话通道，所以拾日只在耳机空闲时借用，" +
-                    "一有音乐、播客或通话就还回去，临时改用手机麦克风。",
+                tr(
+                    "手机麦克风最安静，完全不影响耳机。蓝牙耳机的麦克风要借用通话通道，所以拾日只在耳机空闲时借用，" +
+                        "一有音乐、播客或通话就还回去，临时改用手机麦克风。",
+                    "The phone mic is the quietest choice and never touches your earbuds. A Bluetooth mic has to borrow the call channel, " +
+                        "so Dayweave only uses it while the earbuds are idle and hands it back for music, podcasts or calls, using the phone mic meanwhile.",
+                ),
                 style = Type.Caption, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
             )
+            if (capture.running) {
+                Text(
+                    tr("记录中切换：正在说的这段会在切换处收尾，新的麦克风就绪后接着听。", "Switching while recording: the current passage is closed at the switch, and listening continues once the new mic is ready."),
+                    style = Type.Micro, modifier = Modifier.padding(horizontal = 22.dp, vertical = 2.dp),
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Column(Modifier.padding(horizontal = 16.dp).glass(RoundedCornerShape(24.dp), elevation = 4.dp)) {
-                options.forEach { option -> InputRow(option, option.selection == selected) { settings.setInput(option.selection); onDismiss() } }
+                options.forEach { option ->
+                    val chosen = option.selection == current
+                    val busy = chosen && option.isBluetooth && capture.running && capture.yielded
+                    InputRow(option, chosen, busy) { settings.setInput(option.selection); onDismiss() }
+                }
                 if (options.isEmpty()) Text(tr("没有找到可用的麦克风", "No microphone found"), style = Type.Caption, modifier = Modifier.padding(20.dp))
             }
         }
@@ -565,7 +618,7 @@ private fun InputSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun InputRow(option: InputOption, selected: Boolean, onClick: () -> Unit) {
+private fun InputRow(option: InputOption, selected: Boolean, busy: Boolean, onClick: () -> Unit) {
     val ring by animateColorAsState(if (selected) Ink.Primary else Ink.Hairline, label = "ring")
     Row(
         Modifier.fillMaxWidth().pressable(onClick, scaleTo = 0.98f).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -577,7 +630,14 @@ private fun InputRow(option: InputOption, selected: Boolean, onClick: () -> Unit
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(option.selection.name, style = Type.Headline)
-            Text(if (option.isBluetooth) tr("空闲时借用 · 收音更近", "Borrowed when idle · closer pickup") else tr("推荐 · 静默旁听", "Recommended · never in the way"), style = Type.Caption)
+            Text(
+                when {
+                    busy -> tr("正在使用中 · 已暂用手机麦克风，空闲后接回", "In use · on the phone mic until it's free")
+                    option.isBluetooth -> tr("空闲时借用 · 收音更近", "Borrowed when idle · closer pickup")
+                    else -> tr("推荐 · 静默旁听", "Recommended · never in the way")
+                },
+                style = Type.Caption,
+            )
         }
         Box(Modifier.size(24.dp).border(if (selected) 7.dp else 1.5.dp, ring, CircleShape))
     }

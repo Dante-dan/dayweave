@@ -59,7 +59,17 @@ App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://
 | GET | `/v1/plans` | 订阅方案（公开） |
 | POST | `/v1/subscription` | `{store: apple \| google, signedTransaction \| purchaseToken}`；核验商店订阅，返回凭证 `licenseCode` |
 | POST | `/v1/transcribe` | `{audio}` 16 kHz 16-bit 单声道 PCM 的 base64，≤ 60 秒；返回 Speech-to-Text v2 结果；按秒扣费 |
-| POST | `/v1/assist` | `{kind: digest \| agent, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 120 次 |
+| POST | `/v1/assist` | `{kind: digest \| agent \| chat, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 120 次 |
+
+## 后台（dayweave.duanjl.com/admin）
+
+源码在 `admin/`：Python 标准库写的小服务，跑在落地页那台机器上（只监听 `127.0.0.1:8791`，nginx `/admin/` 转进来），页面在 `admin/www/`。
+
+- 登录：128 位密码，只存 scrypt 哈希；按来源 IP 计失败次数，错 3 次后锁 1 分钟，之后每错一次翻倍（最长 24 小时）。
+- 授权码在浏览器里生成，明文只显示一次，服务端只收哈希和末 5 位提示；可定制单价、额度（金额或分钟）、售价、备注；可废弃、恢复、追加额度。
+- 数据来自拾日云的 `/v1/admin/*`（`Authorization: Bearer <ADMIN_TOKEN>`，没配或不对一律 404）：用户计费、上游成本、毛利、按用途统计、每个码的设备数。
+- 上游成本按服务端 `.env` 里的 `COST_*` 计算，不在任何公开接口里返回。
+- 忘记密码：在落地页那台机器上运行 `dayweave-admin-reset`，打印新的 128 位密码，所有已登录的会话立即失效。
 
 ## 线上部署（us-xl）
 

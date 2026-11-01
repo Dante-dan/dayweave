@@ -84,5 +84,11 @@ export async function generateJson(system, user, schema, maxOutputTokens = 4096)
   const candidate = json.candidates?.[0]
   // 输出被截断多半是模型陷入了重复，宁可报错重试，也不把半截 JSON 交给 App
   if (!candidate || candidate.finishReason === 'MAX_TOKENS') throw new UpstreamError(502, `generation ${candidate?.finishReason || 'empty'}`)
-  return candidate.content.parts.map((p) => p.text || '').join('')
+  const usage = json.usageMetadata || {}
+  return {
+    text: candidate.content.parts.map((p) => p.text || '').join(''),
+    tokensIn: usage.promptTokenCount || 0,
+    // 思考 token 也按输出计费
+    tokensOut: (usage.candidatesTokenCount || 0) + (usage.thoughtsTokenCount || 0),
+  }
 }

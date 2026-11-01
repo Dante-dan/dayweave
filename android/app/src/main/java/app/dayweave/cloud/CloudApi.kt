@@ -86,7 +86,8 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     private fun auth(code: String? = settings.licenseCode): Map<String, String> {
         if (code.isNullOrBlank()) throw NoLicenseException()
-        return mapOf("Authorization" to "Bearer ${code.trim()}")
+        // 安装标识只用于统计一个授权码在几台设备上使用，不含任何个人信息。
+        return mapOf("Authorization" to "Bearer ${code.trim()}", "X-Dayweave-Device" to settings.installId, "X-Dayweave-Platform" to "android")
     }
 
     /** 刷新额度和计价，用于“服务与用量”页面。 */
@@ -162,7 +163,7 @@ class CloudApi(private val settings: Settings, private val scope: CoroutineScope
 
     /** 每日整理或主动提醒：提示词在服务端，只发任务类型、语言和转写内容。 */
     fun assist(task: String, input: String): String {
-        require(task == "digest" || task == "agent") { "Dayweave Cloud only runs digests and reminders" }
+        require(task in setOf("digest", "agent", "chat")) { "Dayweave Cloud only runs digests, reminders and assistant chats" }
         val body = buildJsonObject {
             put("kind", task)
             put("lang", if (app.dayweave.core.Lang.english) "en" else "zh")

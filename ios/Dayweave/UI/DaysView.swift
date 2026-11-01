@@ -208,6 +208,7 @@ struct DayDetail: View {
                 group(tr("亮点", "Highlights"), digest.highlights?.map(\.text))
                 group(tr("决定", "Decisions"), digest.decisions?.map(\.text))
                 group(tr("要跟进", "Follow up"), digest.followUps?.map(\.text))
+                if let advice = digest.advice, !advice.isEmpty { assistants(advice) }
                 group(tr("洞察", "Insights"), digest.insights?.map(\.text))
             }
             if let error = digests.errors[day] { Text(error).font(.footnote).foregroundStyle(Ink.danger) }
@@ -220,6 +221,27 @@ struct DayDetail: View {
                 NavigationLink { ConversationView(id: s.id) } label: { SegmentRow(segment: s) }.buttonStyle(Pressable(scale: 0.98))
             }
         }
+    }
+
+    private func assistants(_ advice: [Advice]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel(text: tr("随身助手", "Assistants"))
+            ForEach(advice, id: \.self) { a in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: a.icon).font(.system(size: 14)).foregroundStyle(Ink.accent).frame(width: 22)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(a.title.map { "\(a.label) · \($0)" } ?? a.label).font(.subheadline.weight(.semibold)).foregroundStyle(Ink.primary)
+                        Text(a.text).font(.subheadline).foregroundStyle(Ink.primary)
+                        if let basis = a.basis, !basis.isEmpty {
+                            Text(tr("依据：\(basis)", "Source: \(basis)")).font(.caption).foregroundStyle(Ink.secondary)
+                        }
+                    }
+                }
+            }
+            Text(tr("仅供参考，不能代替医生或理财顾问的专业意见。", "For reference only; not a substitute for a doctor or financial adviser."))
+                .font(.caption2).foregroundStyle(Ink.tertiary)
+        }
+        .card()
     }
 
     @ViewBuilder

@@ -3,10 +3,12 @@
 // 不保存音频，也不保存转写文字；只记账。没有注册、没有试用：每个请求都必须带有效的授权码。
 // App Store / Google Play 的订阅核验后换成同样的凭证（DS-…），余额每个周期按方案重置。
 import { createServer } from 'node:http'
-import { charge, countAssist, licenseFor, summary, upsertSubscription } from './db.mjs'
+import { createHash } from 'node:crypto'
+import { charge, countAssist, licenseFor, recordUsage, summary, touchDevice, upsertSubscription } from './db.mjs'
+import { adminAllowed, createLicenses, licenseDetail, listLicenses, overview, updateLicense } from './admin.mjs'
 import { UpstreamError, generateJson, recognize } from './google.mjs'
 import { PLANS, grantFor } from './plans.mjs'
-import { costFor, pricing } from './pricing.mjs'
+import { costFor, llmCost, pricing, sttCost } from './pricing.mjs'
 import { ProofError, verifyApple, verifyGoogle } from './stores.mjs'
 import { ENGLISH_RULE, TASKS } from './prompts.mjs'
 
@@ -66,7 +68,19 @@ function licensed(req) {
     throw new HttpError(401, 'invalid license code')
   }
   if (license.expires_at && license.expires_at < Date.now()) throw new HttpError(402, 'subscription expired')
-  return license
+  // 设备：新版 App 带安装标识；旧版没有，按来源 + UA 估算。只存哈希。
+  const given = String(req.headers['x-dayweave-device'] || '').slice(0, 64)
+  const device = createHash('sha256').update(given ? `d:${given}` : `e:${ip}|${req.headers['user-agent'] || ''}`).digest('hex')
+  try {
+    touchDevice(license.hash, device, String(req.headers['x-dayweave-platform'] || '').slice(0, 16), !given)
+  } catch (e) {
+    console.error('device', e.message)
+  }
+  return { ...license, device }
+}
+
+function admin(req) {
+  if (!adminAllowed(req)) throw new HttpError(404, 'not found')
 }
 
 /** 模型偶尔会在某个字段里无限重复。主动提醒：丢掉失控的那几条；每日整理：整份作废，让 App 稍后重试。 */
@@ -131,7 +145,7 @@ const routes = {
     if (license.balance_micros < cost) throw new HttpError(402, 'license balance used up')
     const { results = [] } = await recognize(audio)
     // 转写成功才扣费；扣费时再核对一次余额，防止并发透支。
-    if (!charge(license.hash, seconds, cost)) throw new HttpError(402, 'license balance used up')
+    if (!charge(license.hash, seconds, cost, sttCost(seconds), license.device)) throw new HttpError(402, 'license balance used up')
     return { results }
   },
 
@@ -145,8 +159,39 @@ const routes = {
     if (typeof input !== 'string' || !input) throw new HttpError(400, 'input required')
     if (input.length > MAX_INPUT_CHARS) throw new HttpError(413, 'input too long')
     if (!countAssist(license.hash, ASSISTS_PER_DAY)) throw new HttpError(429, 'daily limit reached')
-    const text = await generateJson(task.system + (lang === 'en' ? ENGLISH_RULE : ''), input, task.schema, task.maxOutputTokens)
+    const { text, tokensIn, tokensOut } = await generateJson(task.system + (lang === 'en' ? ENGLISH_RULE : ''), input, task.schema, task.maxOutputTokens)
+    recordUsage(license.hash, kind, { costMicros: llmCost(tokensIn, tokensOut), tokensIn, tokensOut, device: license.device })
     return { text: sanitize(kind, text, task.maxFieldChars) }
+  },
+
+  // 后台：没有 ADMIN_TOKEN 或令牌不对时一律 404，不暴露接口存在。
+  'GET /v1/admin/overview': (req) => (admin(req), overview()),
+  'GET /v1/admin/licenses': (req) => (admin(req), listLicenses()),
+  'GET /v1/admin/license': (req) => {
+    admin(req)
+    const hash = new URL(req.url, 'http://localhost').searchParams.get('hash') || ''
+    const detail = licenseDetail(hash)
+    if (!detail) throw new HttpError(404, 'license not found')
+    return detail
+  },
+  'POST /v1/admin/licenses': async (req) => {
+    admin(req)
+    try {
+      return createLicenses(await readJson(req))
+    } catch (e) {
+      throw e instanceof HttpError ? e : new HttpError(400, e.message)
+    }
+  },
+  'POST /v1/admin/license': async (req) => {
+    admin(req)
+    let detail
+    try {
+      detail = updateLicense(await readJson(req))
+    } catch (e) {
+      throw e instanceof HttpError ? e : new HttpError(400, e.message)
+    }
+    if (!detail) throw new HttpError(404, 'license not found')
+    return detail
   },
 }
 
