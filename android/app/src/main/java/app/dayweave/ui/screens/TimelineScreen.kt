@@ -103,7 +103,7 @@ fun TimelineScreen(nav: Navigator) {
                 Text(tr("录下的每一段声音，和它说了什么", "Every moment recorded, and what was said"), style = Type.Caption, modifier = Modifier.padding(top = 4.dp))
             }
         }
-        val faces = people.values.filter { p -> p.isOwner || segments.any { s -> p.id in s.speakerIds } }
+        val faces = people.values.filter { p -> p.isOwner || (!p.ignored && segments.any { s -> p.id in s.speakerIds }) }
         if (faces.size > 1) {
             item("people") { PeopleRow(faces, { nav.openPerson(it.id) }, Modifier.padding(bottom = 14.dp)) }
         }

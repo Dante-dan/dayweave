@@ -120,7 +120,7 @@ fun SummaryScreen(nav: Navigator) {
     val talkers = remember(segments, people) {
         segments.flatMap { s -> s.turns.map { it.speakerId to s.id } }
             .groupBy({ it.first }, { it.second })
-            .mapNotNull { (id, segs) -> people[id]?.let { Triple(it, segs.distinct().size, segs.size) } }
+            .mapNotNull { (id, segs) -> people[id]?.takeIf { !it.ignored }?.let { Triple(it, segs.distinct().size, segs.size) } }
             .sortedByDescending { it.third }
     }
     val topics = remember(digests) { digests.values.flatMap { it.topics }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(16) }
@@ -184,7 +184,7 @@ fun SummaryScreen(nav: Navigator) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) { SectionTitle(tr("人", "People")) }
                     Text(
-                        tr("声纹整理 · ${people.size - 1}", "Tidy voices · ${people.size - 1}"),
+                        tr("声纹整理 · ${people.values.count { !it.isOwner && !it.ignored }}", "Tidy voices · ${people.values.count { !it.isOwner && !it.ignored }}"),
                         style = Type.Micro.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.8f)).pressable(nav.openVoices, scaleTo = 0.94f).padding(horizontal = 12.dp, vertical = 6.dp),
                     )

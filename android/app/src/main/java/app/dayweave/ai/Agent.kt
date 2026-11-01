@@ -189,7 +189,7 @@ class Agent(
                 append(if (segment.source == app.dayweave.core.SourceKind.CALL) "，这是通话录音，双方都有" else "，只录到用户这一侧")
             }
             append("\n\n")
-            for (t in segment.turns) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")
+            for (t in segment.turns) if (names[t.speakerId]?.ignored != true) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")
         }
     }
 

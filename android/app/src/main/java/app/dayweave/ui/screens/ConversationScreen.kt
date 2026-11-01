@@ -27,6 +27,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import app.dayweave.ui.components.glass
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -75,6 +83,8 @@ fun ConversationScreen(id: String, nav: Navigator) {
     val people by graph.voice.people.collectAsStateWithLifecycle()
     val segment = segments.firstOrNull { it.id == id }
     var confirmDelete by remember { mutableStateOf(false) }
+    // 正在改说话人的那一句（下标）
+    var relabel by remember { mutableStateOf<Int?>(null) }
 
     Column(Modifier.fillMaxSize().sharedSegment(id).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -147,11 +157,13 @@ fun ConversationScreen(id: String, nav: Navigator) {
                     showTime = previous == null || turn.startMs - previous.endMs > 60_000,
                     segmentStart = segment.startedAt,
                     index = index,
+                    onClick = { relabel = index },
                 )
             }
             item("footer") {
                 Text(
                     buildString {
+                        append(tr("点一句话可以改成别人说的\n", "Tap a line to change who said it\n"))
                         val langs = segment.languages.map { if (it.startsWith("cmn")) tr("中文", "Chinese") else if (it.startsWith("en")) "English" else it }
                         if (langs.isNotEmpty()) append(langs.joinToString(" · ")).append("\n")
                         if (segment.speechMs > 0) append(tr("有效人声 ${duration(segment.speechMs)}，静音与环境音未上传\n", "${duration(segment.speechMs)} of voice; silence and room noise were never uploaded\n"))
@@ -164,6 +176,8 @@ fun ConversationScreen(id: String, nav: Navigator) {
             }
         }
     }
+
+    relabel?.let { i -> RelabelSheet(id, i, people) { relabel = null } }
 
     if (confirmDelete) {
         AlertDialog(
@@ -183,9 +197,70 @@ fun ConversationScreen(id: String, nav: Navigator) {
     }
 }
 
+/**
+ * 手动关联说话人：这一句（或这段里这个人说的所有话）其实是谁说的。只改文字档案，不动声纹。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RelabelSheet(segmentId: String, index: Int, people: Map<String, Person>, onDone: () -> Unit) {
+    val graph = LocalContext.current.graph
+    val segment = graph.archive.get(segmentId)
+    val turn = segment?.turns?.getOrNull(index)
+    if (segment == null || turn == null) {
+        LaunchedEffect(Unit) { onDone() }
+        return
+    }
+    val current = people[turn.speakerId]
+    val sameInSegment = segment.turns.indices.filter { segment.turns[it].speakerId == turn.speakerId }.toSet()
+    var all by remember { mutableStateOf(false) }
+    // 这段里出现的人排前面，其次是说话多的人；路人放最后
+    val choices = remember(people, segment) {
+        val here = segment.speakerIds.toSet()
+        people.values.filter { it.id != turn.speakerId }
+            .sortedWith(compareByDescending<Person> { it.isOwner }.thenByDescending { it.id in here }.thenBy { it.ignored }.thenByDescending { it.named })
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDone,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Glass.Base,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+    ) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+            Text(tr("这句话是谁说的？", "Who said this?"), style = Type.Title, modifier = Modifier.padding(horizontal = 6.dp))
+            Text("“${turn.text.take(60)}”", style = Type.Caption, maxLines = 2, modifier = Modifier.padding(6.dp))
+            if (sameInSegment.size > 1) {
+                Row(Modifier.padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Choice(tr("只改这一句", "Just this line"), !all) { all = false }
+                    Choice(tr("这段里${current?.name ?: tr("未识别", "Unknown")}的 ${sameInSegment.size} 句都改", "All ${sameInSegment.size} lines by ${current?.name ?: "Unknown"} here"), all) { all = true }
+                }
+            }
+            Column(Modifier.padding(top = 8.dp).heightIn(max = 420.dp).verticalScroll(rememberScrollState()).glass(RoundedCornerShape(24.dp), elevation = 4.dp)) {
+                (choices.map { it.id to it } + if (turn.speakerId != app.dayweave.core.UNKNOWN_ID) listOf(app.dayweave.core.UNKNOWN_ID to null) else emptyList()).forEach { (pid, p) ->
+                    Row(
+                        Modifier.fillMaxWidth().pressable({
+                            graph.archive.relabelTurns(segmentId, if (all) sameInSegment else setOf(index), pid)
+                            onDone()
+                        }, scaleTo = 0.98f).padding(horizontal = 16.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Avatar(p, 36.dp, ring = false)
+                        Spacer(Modifier.size(12.dp))
+                        Text(p?.name ?: tr("未识别", "Unknown"), style = Type.Headline, modifier = Modifier.weight(1f))
+                        if (p?.ignored == true) Text(tr("路人", "Passer-by"), style = Type.Micro)
+                    }
+                }
+            }
+            Text(
+                tr("只改这段文字记录；声纹不变。想让以后也认对，可以在这个人的主页里“和别人是同一个人”。", "Only this transcript changes, not the voiceprint. To fix future recognition, use “Same person as…” on their page."),
+                style = Type.Micro, modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
 /** 聊天气泡：主人在右侧用渐变，其他人在左侧用浅灰。依次淡入上浮。 */
 @Composable
-private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boolean, segmentStart: Long, index: Int) {
+private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boolean, segmentStart: Long, index: Int, onClick: () -> Unit) {
     val mine = person?.isOwner == true
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
@@ -216,6 +291,7 @@ private fun Bubble(turn: Turn, person: Person?, showName: Boolean, showTime: Boo
                 modifier = Modifier
                     .widthIn(max = 280.dp)
                     .clip(RoundedCornerShape(22.dp))
+                    .pressable(onClick, scaleTo = 0.97f)
                     .then(
                         if (mine) Modifier.background(Ink.OwnerBubble)
                         else Modifier.background(Glass.Veil.copy(alpha = 0.78f)).border(1.dp, Glass.Edge, RoundedCornerShape(22.dp)),

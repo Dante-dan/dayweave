@@ -64,6 +64,7 @@ import kotlinx.coroutines.withContext
  * 声纹整理：同一个人常因为距离、情绪、耳机不同被认成好几个“说话人”。
  * 这里把很像的声纹分好组，配上每个声纹说过的一句话，用户确认后一键合并；只出现过一两次的零散声纹可以归为未识别。
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun VoicesScreen(nav: Navigator) {
     val graph = LocalContext.current.graph
@@ -156,13 +157,40 @@ fun VoicesScreen(nav: Navigator) {
                 Row(Modifier.padding(top = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     t.fragments.take(14).forEach { Avatar(people[it], 30.dp) }
                 }
-                Row(Modifier.padding(top = 12.dp)) {
+                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Soft(tr("都设为路人", "Mark as passers-by")) {
+                        graph.voice.setIgnored(t.fragments, true)
+                        round++
+                    }
                     Solid(if (confirmFragments) tr("再点一次确认", "Tap again to confirm") else tr("归为未识别", "Mark as unknown")) {
                         if (!confirmFragments) confirmFragments = true
                         else {
                             graph.forgetVoices(t.fragments)
                             confirmFragments = false
                             round++
+                        }
+                    }
+                }
+            }
+        }
+
+        val hidden = people.values.filter { it.ignored }
+        if (hidden.isNotEmpty()) item("hidden") {
+            Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(18.dp)) {
+                Text(tr("路人 · ${hidden.size}", "Passers-by · ${hidden.size}"), style = Type.Title)
+                Text(
+                    tr("不出现在总结、人物列表和每日整理里；再听到也认得出。点一下恢复显示。", "Hidden from Summary, people lists and digests, but still recognized. Tap to show again."),
+                    style = Type.Caption, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                )
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    hidden.forEach { p ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.9f)).pressable({ graph.voice.setIgnored(p.id, false) }, scaleTo = 0.94f).padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Avatar(p, 26.dp, ring = false)
+                            Spacer(Modifier.width(6.dp))
+                            Text(p.name, style = Type.Caption.copy(color = Ink.Primary))
                         }
                     }
                 }

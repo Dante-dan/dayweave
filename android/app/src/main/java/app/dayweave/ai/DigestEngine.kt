@@ -272,8 +272,11 @@ class DigestEngine(
                     SourceKind.MIC -> "麦克风·${s.device}"
                 }
                 val scene = s.scene?.let { "，${it.kind.doing}" + listOfNotNull(it.app, it.title).joinToString(" ").let { d -> if (d.isBlank()) "" else "（$d）" } }.orEmpty()
+                // 用户设为路人的人不进整理
+                val turns = s.turns.filter { names[it.speakerId]?.ignored != true }
+                if (turns.isEmpty()) continue
                 append("## 片段 ${s.id}（${at(s.startedAt)}–${at(s.endedAt)}，$origin$scene）\n")
-                for (t in s.turns) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")
+                for (t in turns) append("${names[t.speakerId]?.name ?: "未识别"}：${t.text}\n")
                 append("\n")
             }
         }

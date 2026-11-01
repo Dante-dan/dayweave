@@ -59,6 +59,7 @@ private data class KnownPerson(
     val count: Int,
     val named: Boolean = false,
     val extra: List<List<Float>> = emptyList(),
+    val ignored: Boolean = false,
 )
 
 /**
@@ -105,7 +106,7 @@ class VoiceId(private val context: Context, root: File) {
             known.associate { p ->
                 // 没起名字的人只存编号，名字按当前语言显示（说话人 3 / Speaker 3）
                 val name = if (p.named) p.name else p.id.removePrefix("p").let { n -> tr("说话人 $n", "Speaker $n") }
-                p.id to Person(p.id, name, p.colorIndex, named = p.named)
+                p.id to Person(p.id, name, p.colorIndex, named = p.named, ignored = p.ignored)
             }
 
     /** 切换语言后重新生成显示名。 */
@@ -211,7 +212,7 @@ class VoiceId(private val context: Context, root: File) {
      */
     @Synchronized
     fun tidy(talkMs: Map<String, Long>, threshold: Float): VoiceTidy {
-        val ids = buildList { if (owner != null) add(OWNER_ID); addAll(known.map { it.id }) }
+        val ids = buildList { if (owner != null) add(OWNER_ID); addAll(known.filter { !it.ignored }.map { it.id }) }
         val voices = ids.map { voicesOf(it)!! }
         val anchor = BooleanArray(ids.size) { ids[it] == OWNER_ID || known.firstOrNull { p -> p.id == ids[it] }?.named == true }
         val n = ids.size
@@ -247,8 +248,20 @@ class VoiceId(private val context: Context, root: File) {
             VoiceGroup(keep, listOf(keep) + (list - keep).sortedByDescending { talkMs[it] ?: 0L })
         }.sortedByDescending { g -> g.members.sumOf { talkMs[it] ?: 0L } }
         val grouped = groups.flatMap { it.members }.toSet()
-        val fragments = known.filter { p -> !p.named && p.id !in grouped && p.count <= 2 && (talkMs[p.id] ?: 0L) < FRAGMENT_MS }.map { it.id }
+        val fragments = known.filter { p -> !p.named && !p.ignored && p.id !in grouped && p.count <= 2 && (talkMs[p.id] ?: 0L) < FRAGMENT_MS }.map { it.id }
         return VoiceTidy(groups, fragments, known.size)
+    }
+
+    /** 设为路人或取消。路人的声纹保留，之后再听到仍归给他，只是不在总结和整理里出现。 */
+    @Synchronized
+    fun setIgnored(id: String, ignored: Boolean) = setIgnored(listOf(id), ignored)
+
+    @Synchronized
+    fun setIgnored(ids: Collection<String>, ignored: Boolean) {
+        val set = ids.toSet()
+        if (known.none { it.id in set }) return
+        known.replaceAll { if (it.id in set) it.copy(ignored = ignored) else it }
+        persist()
     }
 
     /** 用户说这两个声纹不是同一个人。 */

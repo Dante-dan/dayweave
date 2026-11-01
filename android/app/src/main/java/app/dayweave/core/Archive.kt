@@ -93,6 +93,8 @@ data class Person(
     val isOwner: Boolean = false,
     /** 用户标注过名字。 */
     val named: Boolean = false,
+    /** 用户设为“路人”：声纹保留（再听到也认得出），但不出现在总结、人物列表和每日整理里。 */
+    val ignored: Boolean = false,
 ) {
     /** 头像上的字：主人是“我”，标注过的人取名字的第一个字，匿名说话人取编号。 */
     val initial: String

@@ -30,6 +30,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBackIos
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MergeType
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -138,9 +140,21 @@ fun PersonScreen(id: String, nav: Navigator) {
                     style = Type.Caption, modifier = Modifier.padding(top = 6.dp),
                 )
                 if (!person.isOwner) {
+                    if (person.ignored) {
+                        Text(
+                            tr("已设为路人：不出现在总结、人物列表和每日整理里，原文仍保留。", "Marked as a passer-by: hidden from Summary, people lists and digests. Transcripts are kept."),
+                            style = Type.Caption, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
                     Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Action(Icons.Outlined.Edit, if (person.named) tr("改名", "Rename") else tr("这是谁？", "Who's this?")) { editing = true }
                         Action(Icons.Outlined.MergeType, tr("和别人是同一个人", "Same person as…")) { merging = true }
+                    }
+                    Row(Modifier.padding(top = 10.dp)) {
+                        Action(
+                            if (person.ignored) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                            if (person.ignored) tr("恢复显示", "Show again") else tr("路人，不再显示", "Passer-by, hide"),
+                        ) { graph.voice.setIgnored(person.id, !person.ignored) }
                     }
                     Text(
                         tr("声纹太多太乱？去声纹整理", "Too many voices? Tidy them"),
@@ -170,7 +184,7 @@ fun PersonScreen(id: String, nav: Navigator) {
     if (merging) {
         // 按声纹相似度排序：最像的人排在最前面
         val targets = remember(people, id) {
-            people.values.filter { it.id != id && (it.id != OWNER_ID || enrolled) }
+            people.values.filter { it.id != id && !it.ignored && (it.id != OWNER_ID || enrolled) }
                 .map { it to graph.voice.similarity(id, it.id) }.sortedByDescending { it.second }
         }
         ModalBottomSheet(

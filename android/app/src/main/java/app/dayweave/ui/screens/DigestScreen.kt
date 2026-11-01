@@ -210,7 +210,7 @@ private fun DayCard(
     modifier: Modifier = Modifier,
 ) {
     val done = segments.filter { it.status == SegmentStatus.DONE }
-    val faces = done.flatMap { it.speakerIds }.distinct()
+    val faces = done.flatMap { it.speakerIds }.distinct().filter { people[it]?.ignored != true }
 
     Column(
         modifier

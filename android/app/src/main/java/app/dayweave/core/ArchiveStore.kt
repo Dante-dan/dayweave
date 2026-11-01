@@ -56,6 +56,24 @@ class ArchiveStore(root: File) {
         }
     }
 
+    /**
+     * 手动改某几句话的说话人（例如把“未识别”或认错的一句关联到某个人）。
+     * 只改文字档案；音频转写后已删除，所以不会改动声纹。
+     */
+    @Synchronized
+    fun relabelTurns(segmentId: String, indices: Set<Int>, to: String) {
+        val s = get(segmentId) ?: return
+        val turns = s.turns.mapIndexed { i, t -> if (i in indices) t.copy(speakerId = to) else t }
+        save(s.copy(turns = joinAdjacent(turns)))
+    }
+
+    private fun joinAdjacent(turns: List<Turn>) = turns.fold(mutableListOf<Turn>()) { acc, t ->
+        val last = acc.lastOrNull()
+        if (last != null && last.speakerId == t.speakerId && t.startMs - last.endMs <= 1_200L) acc[acc.lastIndex] = last.copy(endMs = t.endMs, text = app.dayweave.transcribe.joinText(last.text, t.text))
+        else acc += t
+        acc
+    }
+
     /** 一次改多个说话人（声纹整理批量合并时用），每个片段只写一次。 */
     @Synchronized
     fun reassignSpeakers(map: Map<String, String>) {
@@ -63,12 +81,7 @@ class ArchiveStore(root: File) {
         val changed = _segments.value.filter { s -> s.turns.any { it.speakerId in map } }.associate { s ->
             val turns = s.turns.map { t -> map[t.speakerId]?.let { t.copy(speakerId = it) } ?: t }
             // 合并后相邻的同一个人连成一段
-            val joined = turns.fold(mutableListOf<Turn>()) { acc, t ->
-                val last = acc.lastOrNull()
-                if (last != null && last.speakerId == t.speakerId && t.startMs - last.endMs <= 1_200L) acc[acc.lastIndex] = last.copy(endMs = t.endMs, text = app.dayweave.transcribe.joinText(last.text, t.text))
-                else acc += t
-                acc
-            }
+            val joined = joinAdjacent(turns)
             val next = s.copy(turns = joined)
             segmentFiles.write(next)
             s.id to next
