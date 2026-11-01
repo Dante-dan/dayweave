@@ -129,9 +129,19 @@ fun DayScreen(date: LocalDate, nav: Navigator) {
                 tr("要跟进", "Follow up") to digest.followUps.map {
                     Line(it.text, it.segmentIds, when (it.owner) { "me" -> tr("我", "Me"); "other" -> tr("对方", "Them"); else -> tr("待确认", "Unclear") })
                 },
+                tr("生活场景", "Scenes") to digest.scenes.map { sc ->
+                    Line(
+                        sc.note, sc.segmentIds, title = sc.title,
+                        note = listOf(sc.time, sc.who.joinToString(tr("、", ", "))).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null },
+                    )
+                },
                 tr("随身助手", "Assistants") to digest.advice.mapNotNull { a ->
                     val who = app.dayweave.ai.Assistant.of(a.assistant) ?: return@mapNotNull null
-                    Line(a.text, a.segmentIds, who.label, title = a.title.ifBlank { null }, note = a.basis.ifBlank { null }?.let { tr("依据：$it", "Source: $it") }, assistant = a.assistant)
+                    val note = listOfNotNull(
+                        a.scene.ifBlank { null }?.let { tr("场景：$it", "Scene: $it") },
+                        a.basis.ifBlank { null }?.let { tr("依据：$it", "Source: $it") },
+                    ).joinToString(" · ").ifBlank { null }
+                    Line(a.text, a.segmentIds, who.label, title = a.title.ifBlank { null }, note = note, assistant = a.assistant)
                 },
                 tr("做了的决定", "Decisions") to digest.decisions.map { Line(it.text, it.segmentIds) },
                 tr("今天的经历", "What happened") to digest.highlights.map { Line(it.text, it.segmentIds) },

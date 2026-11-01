@@ -4,11 +4,13 @@ import android.content.Context
 import app.dayweave.core.OWNER_ID
 import app.dayweave.core.Person
 import app.dayweave.core.SAMPLE_RATE
+import app.dayweave.core.UNKNOWN_ID
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor
 import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.math.sqrt
@@ -20,6 +22,20 @@ const val OWNER_THRESHOLD = 0.5f
 private const val PERSON_THRESHOLD = 0.55f
 /** 太短的发言无法稳定提取声纹，循环拼接到这个长度。 */
 private const val MIN_EMBED_SAMPLES = SAMPLE_RATE * 3 / 2
+/**
+ * 至少这么长的真实人声才允许新建一个说话人。短句（“嗯”“好的”）的声纹噪声很大，
+ * 以前每句都可能被当成新的人，一天就能冒出几百个声纹。
+ */
+private const val MIN_NEW_PERSON_SAMPLES = SAMPLE_RATE * 5 / 2
+/** 至少这么长才用来更新已知声纹的均值，避免短句把均值带偏。 */
+private const val MIN_LEARN_SAMPLES = SAMPLE_RATE * 3
+/** 短句声纹偏离较大，略放宽归属阈值；仍不像任何已知的人就记为未识别。 */
+private const val SHORT_MATCH_THRESHOLD = 0.5f
+/** 声纹整理：平均相似度高于它的两组声纹建议合并。 */
+const val TIDY_LOOSE = 0.42f
+const val TIDY_STRICT = 0.52f
+/** 只出现过一两次、总共说话不到这么久的声纹算“零散声纹”。 */
+private const val FRAGMENT_MS = 8_000L
 
 @Serializable
 private data class OwnerVoice(
@@ -54,6 +70,10 @@ class VoiceId(private val context: Context, root: File) {
     private val ownerFile = File(dir, "owner.json")
     private val peopleFile = File(dir, "people.json")
     private val json = Json { ignoreUnknownKeys = true }
+
+    private val distinctFile = File(dir, "distinct.json")
+    /** 用户确认“不是同一个人”的声纹对，整理时不再建议合并。 */
+    private val distinct = runCatching { json.decodeFromString<Set<String>>(distinctFile.readText()) }.getOrDefault(emptySet()).toMutableSet()
 
     private val extractor by lazy {
         SpeakerEmbeddingExtractor(
@@ -140,25 +160,109 @@ class VoiceId(private val context: Context, root: File) {
     private fun KnownPerson.score(embedding: FloatArray) =
         (listOf(centroid) + extra).maxOf { cosine(it.toFloatArray(), embedding) }
 
-    /** 判断一段声纹是谁：先比主人，再比已知的人（含手动合并进来的声纹），都不像就新建一个匿名说话人。 */
+    /**
+     * 判断一段声纹是谁：先比主人，再比已知的人（含手动合并进来的声纹）。
+     * samples 是提取声纹用的真实人声长度：太短的只归给足够像的已知的人，否则记为未识别，不新建说话人。
+     */
     @Synchronized
-    fun resolve(embedding: FloatArray): Pair<String, Float?> {
+    fun resolve(embedding: FloatArray, samples: Int = MIN_LEARN_SAMPLES): Pair<String, Float?> {
         val score = ownerScore(embedding)
         if (score != null && score >= OWNER_THRESHOLD) return OWNER_ID to score
 
         val best = known.withIndex().maxByOrNull { it.value.score(embedding) }
-        if (best != null && best.value.score(embedding) >= PERSON_THRESHOLD) {
+        val bestScore = best?.value?.score(embedding) ?: -1f
+        val threshold = if (samples >= MIN_NEW_PERSON_SAMPLES) PERSON_THRESHOLD else SHORT_MATCH_THRESHOLD
+        if (best != null && bestScore >= threshold) {
             val p = best.value
-            val merged = FloatArray(embedding.size) { (p.centroid[it] * p.count + embedding[it]) / (p.count + 1) }
-            known[best.index] = p.copy(centroid = normalize(merged).toList(), count = p.count + 1)
+            if (samples >= MIN_LEARN_SAMPLES) {
+                val merged = FloatArray(embedding.size) { (p.centroid[it] * p.count + embedding[it]) / (p.count + 1) }
+                known[best.index] = p.copy(centroid = normalize(merged).toList(), count = p.count + 1)
+            } else {
+                known[best.index] = p.copy(count = p.count + 1)
+            }
             persist()
             return p.id to score
         }
+        if (samples < MIN_NEW_PERSON_SAMPLES) return UNKNOWN_ID to score
 
         val n = (known.mapNotNull { it.id.removePrefix("p").toIntOrNull() }.maxOrNull() ?: 0) + 1
         known += KnownPerson("p$n", "说话人 $n", n, embedding.toList(), 1)
         persist()
         return "p$n" to score
+    }
+
+    private fun voicesOf(id: String): List<FloatArray>? = when (id) {
+        OWNER_ID -> owner?.let { o -> listOf(o) + ownerVoice?.extra.orEmpty().map { it.toFloatArray() } }
+        else -> known.firstOrNull { it.id == id }?.let { p -> (listOf(p.centroid) + p.extra).map { it.toFloatArray() } }
+    }
+
+    /** 两个人的声纹有多像（各自所有声纹两两比较取最大），用于合并时排序。 */
+    @Synchronized
+    fun similarity(a: String, b: String): Float {
+        val va = voicesOf(a) ?: return -1f
+        val vb = voicesOf(b) ?: return -1f
+        return va.maxOf { x -> vb.maxOf { y -> cosine(x, y) } }
+    }
+
+    /**
+     * 声纹整理：把很像的声纹分成组，建议合并。平均链接层次聚类，主人和已命名的人作为锚点，
+     * 一组里最多一个锚点（不会把两个已命名的人并在一起）；用户说过“不是同一个人”的不再并到一组。
+     * talkMs 是每个人在档案里一共说了多久，用来挑每组保留谁、判断零散声纹。
+     */
+    @Synchronized
+    fun tidy(talkMs: Map<String, Long>, threshold: Float): VoiceTidy {
+        val ids = buildList { if (owner != null) add(OWNER_ID); addAll(known.map { it.id }) }
+        val voices = ids.map { voicesOf(it)!! }
+        val anchor = BooleanArray(ids.size) { ids[it] == OWNER_ID || known.firstOrNull { p -> p.id == ids[it] }?.named == true }
+        val n = ids.size
+        // 平均链接：sim[i][j] 是两组之间所有成员两两相似度（取各自声纹最大值）的平均。
+        val sim = Array(n) { FloatArray(n) }
+        for (i in 0 until n) for (j in i + 1 until n) {
+            val v = voices[i].maxOf { x -> voices[j].maxOf { y -> cosine(x, y) } }
+            sim[i][j] = v; sim[j][i] = v
+        }
+        val size = IntArray(n) { 1 }
+        val members = Array(n) { mutableListOf(it) }
+        val alive = BooleanArray(n) { true }
+        val hasAnchor = anchor.copyOf()
+        fun blocked(a: Int, b: Int) = (hasAnchor[a] && hasAnchor[b]) ||
+            distinct.isNotEmpty() && members[a].any { x -> members[b].any { y -> pairKey(ids[x], ids[y]) in distinct } }
+        while (true) {
+            var bi = -1; var bj = -1; var best = threshold
+            for (i in 0 until n) if (alive[i]) for (j in i + 1 until n) if (alive[j] && sim[i][j] >= best && !blocked(i, j)) {
+                best = sim[i][j]; bi = i; bj = j
+            }
+            if (bi < 0) break
+            for (k in 0 until n) if (alive[k] && k != bi && k != bj) {
+                val v = (sim[bi][k] * size[bi] + sim[bj][k] * size[bj]) / (size[bi] + size[bj])
+                sim[bi][k] = v; sim[k][bi] = v
+            }
+            size[bi] += size[bj]; members[bi] += members[bj]; hasAnchor[bi] = hasAnchor[bi] || hasAnchor[bj]
+            alive[bj] = false
+        }
+        val groups = (0 until n).filter { alive[it] && members[it].size > 1 }.map { g ->
+            val list = members[g].map { ids[it] }
+            val keep = list.firstOrNull { it == OWNER_ID } ?: list.firstOrNull { id -> known.any { it.id == id && it.named } }
+                ?: list.maxBy { talkMs[it] ?: 0L }
+            VoiceGroup(keep, listOf(keep) + (list - keep).sortedByDescending { talkMs[it] ?: 0L })
+        }.sortedByDescending { g -> g.members.sumOf { talkMs[it] ?: 0L } }
+        val grouped = groups.flatMap { it.members }.toSet()
+        val fragments = known.filter { p -> !p.named && p.id !in grouped && p.count <= 2 && (talkMs[p.id] ?: 0L) < FRAGMENT_MS }.map { it.id }
+        return VoiceTidy(groups, fragments, known.size)
+    }
+
+    /** 用户说这两个声纹不是同一个人。 */
+    @Synchronized
+    fun markDistinct(a: String, b: String) {
+        distinct += pairKey(a, b)
+        distinctFile.writeText(json.encodeToString(kotlinx.serialization.builtins.SetSerializer(String.serializer()), distinct.toSet()))
+    }
+
+    /** 忘掉这些声纹（零散声纹）。调用方负责把档案里他们的发言改成未识别。 */
+    @Synchronized
+    fun forget(ids: Collection<String>) {
+        val set = ids.toSet() - OWNER_ID
+        if (known.removeAll { it.id in set }) persist()
     }
 
     /** 给一个人起名字。之后识别到同样的声纹会自动显示这个名字。 */
@@ -202,9 +306,19 @@ class VoiceId(private val context: Context, root: File) {
     fun forgetPeople() {
         known.clear()
         peopleFile.delete()
+        distinct.clear()
+        distinctFile.delete()
         _people.value = snapshot()
     }
 }
+
+/** 一组很像的声纹：members 第一个是保留的人（主人、已命名的人或说话最多的人）。 */
+data class VoiceGroup(val keep: String, val members: List<String>)
+
+/** 声纹整理的结果：建议合并的组、零散声纹，以及当前声纹总数。 */
+data class VoiceTidy(val groups: List<VoiceGroup>, val fragments: List<String>, val total: Int)
+
+private fun pairKey(a: String, b: String) = if (a < b) "$a|$b" else "$b|$a"
 
 private fun normalize(v: FloatArray): FloatArray {
     val norm = sqrt(v.fold(0f) { acc, x -> acc + x * x })

@@ -28,8 +28,8 @@ import kotlin.coroutines.resume
 enum class Plan(val hours: Int, val monthlyUsd: String, val yearlyUsd: String?, private val zh: String, private val en: String) {
     LITE(5, "$19.99", "$199.99", "轻享", "Lite"),
     PLUS(30, "$99.99", "$999.99", "标准", "Plus"),
-    PRO(100, "$199.99", null, "专业", "Pro"),
-    MAX(280, "$499.99", null, "全天", "Max"),
+    PRO(70, "$199.99", null, "专业", "Pro"),
+    MAX(180, "$499.99", null, "全天", "Max"),
     ;
 
     val label get() = tr(zh, en)

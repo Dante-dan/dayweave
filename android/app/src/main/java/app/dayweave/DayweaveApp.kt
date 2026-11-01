@@ -93,6 +93,19 @@ fun AppGraph.mergePeople(from: String, into: String) {
     archive.reassignSpeaker(from, into)
 }
 
+/** 声纹整理：一组组合并到保留的人，档案一次改完。 */
+fun AppGraph.mergeGroups(groups: List<app.dayweave.voice.VoiceGroup>) {
+    val map = mutableMapOf<String, String>()
+    groups.forEach { g -> g.members.drop(1).forEach { m -> voice.merge(m, g.keep); map[m] = g.keep } }
+    archive.reassignSpeakers(map)
+}
+
+/** 忘掉零散声纹，他们说过的话改成“未识别”。 */
+fun AppGraph.forgetVoices(ids: List<String>) {
+    voice.forget(ids)
+    archive.reassignSpeakers(ids.associateWith { app.dayweave.core.UNKNOWN_ID })
+}
+
 class DayweaveApp : Application() {
     lateinit var graph: AppGraph
         private set

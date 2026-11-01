@@ -8,7 +8,7 @@
 
 ## 计价
 
-按有效人声时长计费：**$0.0808 / 分钟**（$4.85 / 小时），单价由服务端 `.env` 的 `PRICE_MICROS_PER_MINUTE` 决定。整理和主动提醒不单独收费，每个凭证每天最多 120 次 AI 调用。
+按有效人声时长计费：**$0.0808 / 分钟**（$4.85 / 小时），单价由服务端 `.env` 的 `PRICE_MICROS_PER_MINUTE` 决定。授权码的整理、主动提醒和助手对话按实际用量从余额扣除（折算系数在 `.env` 的 `ASSIST_PRICE_FACTOR`）；订阅不另扣。每个凭证每天最多 80 次 AI 调用。
 
 订阅（App Store / Google Play 自动续期，见 `src/plans.mjs`）。年付 = 10 个月的价格，同样每 30 天发放一次当月时长；专业和全天只有月付。
 
@@ -59,7 +59,7 @@ App 打包时指定服务地址：`./gradlew assembleRelease -PcloudUrl=https://
 | GET | `/v1/plans` | 订阅方案（公开） |
 | POST | `/v1/subscription` | `{store: apple \| google, signedTransaction \| purchaseToken}`；核验商店订阅，返回凭证 `licenseCode` |
 | POST | `/v1/transcribe` | `{audio}` 16 kHz 16-bit 单声道 PCM 的 base64，≤ 60 秒；返回 Speech-to-Text v2 结果；按秒扣费 |
-| POST | `/v1/assist` | `{kind: digest \| agent \| chat, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 120 次 |
+| POST | `/v1/assist` | `{kind: digest \| agent \| chat, lang: zh \| en, input}`；提示词与输出结构由服务端保管（`src/prompts.mjs`），不能当通用大模型代理；每个码每天最多 80 次 |
 
 ## 后台（dayweave.duanjl.com/admin）
 

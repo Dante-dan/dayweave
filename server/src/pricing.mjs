@@ -17,6 +17,10 @@ export const costs = {
   llmInMicrosPerMillion: env('COST_LLM_IN_MICROS_PER_MTOK'),
   llmOutMicrosPerMillion: env('COST_LLM_OUT_MICROS_PER_MTOK'),
 }
+/** 授权码的 AI 调用（整理、提醒、助手对话）按上游成本折算后从余额扣除；系数只在服务端 .env 配置。订阅不扣。 */
+const assistFactor = env('ASSIST_PRICE_FACTOR')
+export const assistPrice = (costMicros) => Math.ceil(costMicros * assistFactor)
+
 export const sttCost = (seconds) => Math.ceil((seconds * costs.sttMicrosPerMinute) / 60)
 export const llmCost = (tokensIn, tokensOut) =>
   Math.ceil((tokensIn * costs.llmInMicrosPerMillion + tokensOut * costs.llmOutMicrosPerMillion) / 1e6)

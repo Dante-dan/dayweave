@@ -4,16 +4,16 @@
 // App Store / Google Play 的订阅核验后换成同样的凭证（DS-…），余额每个周期按方案重置。
 import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
-import { charge, countAssist, licenseFor, recordUsage, summary, touchDevice, upsertSubscription } from './db.mjs'
+import { charge, chargeAssist, countAssist, licenseFor, summary, touchDevice, upsertSubscription } from './db.mjs'
 import { adminAllowed, createLicenses, licenseDetail, listLicenses, overview, updateLicense } from './admin.mjs'
 import { UpstreamError, generateJson, recognize } from './google.mjs'
 import { PLANS, grantFor } from './plans.mjs'
-import { costFor, llmCost, pricing, sttCost } from './pricing.mjs'
+import { assistPrice, costFor, llmCost, pricing, sttCost } from './pricing.mjs'
 import { ProofError, verifyApple, verifyGoogle } from './stores.mjs'
 import { ENGLISH_RULE, TASKS } from './prompts.mjs'
 
 const PORT = Number(process.env.PORT || 8787)
-const ASSISTS_PER_DAY = Number(process.env.ASSISTS_PER_DAY || process.env.DIGESTS_PER_DAY || 120)
+const ASSISTS_PER_DAY = Number(process.env.ASSISTS_PER_DAY || process.env.DIGESTS_PER_DAY || 80)
 const MAX_BODY = 4 * 1024 * 1024
 const MAX_AUDIO_SECONDS = 60
 const MAX_INPUT_CHARS = 120_000
@@ -149,7 +149,8 @@ const routes = {
     return { results }
   },
 
-  // 每日整理与主动提醒：提示词由服务端保管，客户端只给任务类型、语言和转写内容。费用已包含在转录单价里。
+  // 每日整理、主动提醒与助手对话：提示词由服务端保管，客户端只给任务类型、语言和输入。
+  // 授权码按实际用量从余额扣费；订阅按方案时长计费，AI 调用不另扣。
   'POST /v1/assist': async (req) => {
     const license = licensed(req)
     if (license.balance_micros <= 0) throw new HttpError(402, 'license balance used up')
@@ -160,7 +161,9 @@ const routes = {
     if (input.length > MAX_INPUT_CHARS) throw new HttpError(413, 'input too long')
     if (!countAssist(license.hash, ASSISTS_PER_DAY)) throw new HttpError(429, 'daily limit reached')
     const { text, tokensIn, tokensOut } = await generateJson(task.system + (lang === 'en' ? ENGLISH_RULE : ''), input, task.schema, task.maxOutputTokens)
-    recordUsage(license.hash, kind, { costMicros: llmCost(tokensIn, tokensOut), tokensIn, tokensOut, device: license.device })
+    const costMicros = llmCost(tokensIn, tokensOut)
+    const subscribed = String(license.label || '').startsWith('sub:')
+    chargeAssist(license.hash, kind, { micros: subscribed ? 0 : assistPrice(costMicros), costMicros, tokensIn, tokensOut, device: license.device })
     return { text: sanitize(kind, text, task.maxFieldChars) }
   },
 

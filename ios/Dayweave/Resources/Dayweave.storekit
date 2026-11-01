@@ -34,12 +34,12 @@
           "introductoryOffer": null,
           "localizations": [
             {
-              "description": "280 hours of voice a month",
+              "description": "180 hours of voice a month",
               "displayName": "Dayweave Cloud Max (monthly)",
               "locale": "en_US"
             },
             {
-              "description": "每月 280 小时人声",
+              "description": "每月 180 小时人声",
               "displayName": "拾日云 全天（月付）",
               "locale": "zh_Hans"
             }
@@ -61,12 +61,12 @@
           "introductoryOffer": null,
           "localizations": [
             {
-              "description": "100 hours of voice a month",
+              "description": "70 hours of voice a month",
               "displayName": "Dayweave Cloud Pro (monthly)",
               "locale": "en_US"
             },
             {
-              "description": "每月 100 小时人声",
+              "description": "每月 70 小时人声",
               "displayName": "拾日云 专业（月付）",
               "locale": "zh_Hans"
             }

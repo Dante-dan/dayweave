@@ -14,11 +14,20 @@ const val FRAME_SAMPLES = SAMPLE_RATE / 10 // 100 ms
 private const val FRAME_MS = 100L
 private const val PRE_ROLL_FRAMES = 10 // 1 s，避免漏掉讲话开头
 private const val START_FRAMES = 3 // 连续 300 ms 人声才开段
-private const val END_SILENCE_MS = 2_500L
+/**
+ * 停顿超过它才结束一段。对话里换人、想一想常有几秒空白；切得太碎会让每段都很短：
+ * 上传次数多、声纹不准（同一个人被认成很多人）、主动提醒也要多跑很多次。
+ */
+private const val END_SILENCE_MS = 8_000L
 private const val MAX_SEGMENT_MS = 15 * 60_000L
-private const val MIN_SPEECH_MS = 800L
+private const val MIN_SPEECH_MS = 1_500L
 /** 低于它肯定没人说话，跳过模型判断。 */
 private const val SILENT_DB = -65.0
+/**
+ * 开段要求的人声电平。身边的人说话通常在 -40 dBFS 以上；隔壁房间的电视、远处的人声更低，不值得开段。
+ * 段内的后续人声仍按 SILENT_DB 判断，不会切掉轻声说话的人。
+ */
+private const val START_DB = -52.0
 
 /**
  * 人声检测与分段：电平先粗筛，再由本地 VAD 模型确认是不是人声，所以环境音、音乐不会开段。
@@ -62,7 +71,7 @@ class Segmenter(
         if (w == null) {
             preRoll.addLast(copy)
             if (preRoll.size > PRE_ROLL_FRAMES) preRoll.removeFirst()
-            speechRun = if (speech) speechRun + 1 else 0
+            speechRun = if (speech && db > START_DB) speechRun + 1 else 0
             if (speechRun >= START_FRAMES) open(now - preRoll.size * FRAME_MS, now, withPreRoll = true)
             return
         }

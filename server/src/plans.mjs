@@ -7,8 +7,8 @@ import { pricing } from './pricing.mjs'
 const TIERS = {
   lite: { hours: 5, monthly: 19.99, yearly: 199.99 },
   plus: { hours: 30, monthly: 99.99, yearly: 999.99 },
-  pro: { hours: 100, monthly: 199.99 },
-  max: { hours: 280, monthly: 499.99 },
+  pro: { hours: 70, monthly: 199.99 },
+  max: { hours: 180, monthly: 499.99 },
 }
 
 export const PLANS = Object.fromEntries(Object.entries(TIERS).flatMap(([id, t]) => [

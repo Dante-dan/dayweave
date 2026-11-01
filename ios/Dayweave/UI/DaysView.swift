@@ -208,6 +208,7 @@ struct DayDetail: View {
                 group(tr("亮点", "Highlights"), digest.highlights?.map(\.text))
                 group(tr("决定", "Decisions"), digest.decisions?.map(\.text))
                 group(tr("要跟进", "Follow up"), digest.followUps?.map(\.text))
+                group(tr("生活场景", "Scenes"), digest.scenes?.map(\.line))
                 if let advice = digest.advice, !advice.isEmpty { assistants(advice) }
                 group(tr("洞察", "Insights"), digest.insights?.map(\.text))
             }
@@ -232,6 +233,9 @@ struct DayDetail: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(a.title.map { "\(a.label) · \($0)" } ?? a.label).font(.subheadline.weight(.semibold)).foregroundStyle(Ink.primary)
                         Text(a.text).font(.subheadline).foregroundStyle(Ink.primary)
+                        if let scene = a.scene, !scene.isEmpty {
+                            Text(tr("场景：\(scene)", "Scene: \(scene)")).font(.caption).foregroundStyle(Ink.secondary)
+                        }
                         if let basis = a.basis, !basis.isEmpty {
                             Text(tr("依据：\(basis)", "Source: \(basis)")).font(.caption).foregroundStyle(Ink.secondary)
                         }

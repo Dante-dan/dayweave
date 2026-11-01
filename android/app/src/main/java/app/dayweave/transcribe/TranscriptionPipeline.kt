@@ -25,8 +25,8 @@ private const val CHUNK_MAX = SAMPLE_RATE * 55 // 同步识别单次上限 60 �
 private const val CHUNK_SEARCH = SAMPLE_RATE * 15 // 在最后 15 秒里找最安静处切开
 private const val FRAME = SAMPLE_RATE / 10
 private const val TURN_GAP_MS = 1_200L
-/** 去掉静音和环境音后不足这么长，就不值得送去转写。 */
-private const val MIN_SPEECH_SAMPLES = SAMPLE_RATE / 2
+/** 去掉静音和环境音后不足这么长（一两个字的“嗯”“好”），就不值得送去转写。 */
+private const val MIN_SPEECH_SAMPLES = SAMPLE_RATE * 6 / 5
 
 /**
  * 第一步“忠实记录”的后半段：临时音频 → 本地人声检测去掉静音和环境音 → 转写 → 声纹归属 → 文字档案 → 删除音频。
@@ -188,7 +188,7 @@ class TranscriptionPipeline(
                 val to = (chunkStart + (w.endMs * SAMPLE_RATE / 1000).toInt()).coerceAtMost(pcm.size)
                 if (to > from) pcm.copyOfRange(from, to).asIterable() else emptyList()
             }.toShortArray()
-            voice.embed(audio)?.let(voice::resolve) ?: (UNKNOWN_ID to null)
+            voice.embed(audio)?.let { voice.resolve(it, audio.size) } ?: (UNKNOWN_ID to null)
         }
 
         val turns = mutableListOf<Turn>()

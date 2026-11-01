@@ -111,6 +111,25 @@ export function recordUsage(hash, kind, { seconds = 0, micros = 0, costMicros = 
     .run(hash, Date.now(), kind, seconds, micros, costMicros, tokensIn, tokensOut, device)
 }
 
+/**
+ * 记一次 AI 调用并从余额扣费（micros 为 0 时只记录）。余额不足时扣到 0，不让一次调用失败。
+ */
+export function chargeAssist(hash, kind, { micros = 0, costMicros = 0, tokensIn = 0, tokensOut = 0, device = null } = {}) {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const row = db.prepare('SELECT balance_micros FROM licenses WHERE hash = ?').get(hash)
+    const take = Math.min(micros, Math.max(0, row?.balance_micros ?? 0))
+    const now = Date.now()
+    if (take > 0) db.prepare('UPDATE licenses SET balance_micros = balance_micros - ?, last_used_at = ? WHERE hash = ?').run(take, now, hash)
+    db.prepare('INSERT INTO usage (license, at, kind, seconds, micros, cost_micros, tokens_in, tokens_out, device) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)')
+      .run(hash, now, kind, take, costMicros, tokensIn, tokensOut, device)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+}
+
 /** 授权码规范化：去掉空格和连字符、转大写。“dw-abcd efgh” 与 “DWABCDEFGH” 是同一个码。 */
 export const normalize = (code) => String(code || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
 export const hashOf = (code) => createHash('sha256').update(normalize(code)).digest('hex')
@@ -216,7 +235,14 @@ export function summary(license) {
   const used = db.prepare(
     'SELECT COALESCE(SUM(seconds), 0) AS seconds, COALESCE(SUM(micros), 0) AS micros FROM usage WHERE license = ? AND at >= ?',
   ).get(license.hash, since)
-  const ledger = db.prepare("SELECT at, kind, seconds, micros FROM usage WHERE license = ? AND kind = 'transcribe' ORDER BY at DESC LIMIT 30").all(license.hash)
+  // 转写逐条列出；AI 调用按天合并成一条（kind = assist），只列有扣费的
+  const ledger = db.prepare(`
+    SELECT at, kind, seconds, micros FROM (
+      SELECT at, kind, seconds, micros FROM usage WHERE license = ? AND kind = 'transcribe'
+      UNION ALL
+      SELECT MAX(at) AS at, 'assist' AS kind, 0 AS seconds, SUM(micros) AS micros FROM usage
+        WHERE license = ? AND kind != 'transcribe' AND micros > 0 GROUP BY date(at / 1000, 'unixepoch')
+    ) ORDER BY at DESC LIMIT 30`).all(license.hash, license.hash)
     .map((r) => ({ ...r, micros: -r.micros }))
   return {
     label: license.label,

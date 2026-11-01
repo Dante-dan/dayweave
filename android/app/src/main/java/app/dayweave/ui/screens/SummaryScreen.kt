@@ -180,7 +180,16 @@ fun SummaryScreen(nav: Navigator) {
         }
 
         if (talkers.isNotEmpty()) {
-            item("people-title") { SectionTitle(tr("人", "People")) }
+            item("people-title") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { SectionTitle(tr("人", "People")) }
+                    Text(
+                        tr("声纹整理 · ${people.size - 1}", "Tidy voices · ${people.size - 1}"),
+                        style = Type.Micro.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Glass.Veil.copy(alpha = 0.8f)).pressable(nav.openVoices, scaleTo = 0.94f).padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
             item("people") {
                 Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp))) {
                     talkers.take(12).forEachIndexed { i, (p, convs, lines) ->
@@ -500,7 +509,7 @@ private fun Modifier.alphaIf(dim: Boolean) = graphicsLayer { alpha = if (dim) 0.
 
 /** 选中是实心，不是描边。 */
 @Composable
-private fun Choice(text: String, selected: Boolean, onClick: () -> Unit) {
+internal fun Choice(text: String, selected: Boolean, onClick: () -> Unit) {
     val bg by animateColorAsState(if (selected) Ink.Primary else Glass.Veil.copy(alpha = 0.8f), label = "choice")
     Text(
         text, style = Type.Caption.copy(color = if (selected) Ink.OnPrimary else Ink.Primary, fontWeight = FontWeight.Medium),

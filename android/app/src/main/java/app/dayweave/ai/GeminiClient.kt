@@ -111,7 +111,7 @@ class OpenAiCompatible(private val config: AiConfig) : DigestModel {
     }
 }
 
-/** 拾日云提供的整理：提示词在服务端，这里只发任务类型和转写内容。费用已包含在有效转录时长里。 */
+/** 拾日云提供的整理：提示词在服务端，这里只发任务类型和转写内容。订阅不另收费，授权码按用量从余额扣。 */
 class CloudDigest(private val cloud: CloudApi) : DigestModel {
     override val name = tr("拾日云", "Dayweave Cloud")
     override val problem get() = cloud.problem

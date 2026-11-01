@@ -8,8 +8,8 @@ export const UPDATED = '2026-10-31'
 export const PLANS = [
   { id: 'lite', usd: 19.99, yearly: 199.99, hours: 5 },
   { id: 'plus', usd: 99.99, yearly: 999.99, hours: 30, featured: true },
-  { id: 'pro', usd: 199.99, hours: 100 },
-  { id: 'max', usd: 499.99, hours: 280 },
+  { id: 'pro', usd: 199.99, hours: 70 },
+  { id: 'max', usd: 499.99, hours: 180 },
 ]
 /** 月付相对按量（授权码）的折扣；年付相对 12 个月月付的折扣。 */
 export const saving = (p, yearly = false) => Math.round((1 - (yearly ? p.yearly / (12 * p.usd) : p.usd / (p.hours * 60 * PER_MINUTE_USD))) * 100)
@@ -85,7 +85,7 @@ export const T = {
     },
     pricing: {
       title: 'Pay for voice, not for silence',
-      lead: 'Only speech that reaches the cloud counts. Silence, music, podcasts and videos are filtered on your phone and never billed. Digests and reminders are included.',
+      lead: 'Only speech that reaches the cloud counts. Silence, music, podcasts and videos are filtered on your phone and never billed. Daily digests and reminders are included in subscriptions; with a license code, AI features draw on the same balance.',
       monthly: '/ month',
       hours: (h) => `${h} hours of voice each month`,
       perDay: (h) => perDayMin(h) >= 60 ? `≈ ${asHours(perDayMin(h))} h of conversation a day` : `≈ ${perDayMin(h)} min of conversation a day`,
@@ -187,7 +187,7 @@ export const T = {
     },
     pricing: {
       title: '为人声付费，沉默不收钱',
-      lead: '只有送到云端的人声才计费。静音、音乐、播客和视频在手机上就被过滤，不收费。每日整理和主动提醒包含在内。',
+      lead: '只有送到云端的人声才计费。静音、音乐、播客和视频在手机上就被过滤，不收费。订阅已包含每日整理和主动提醒；授权码的 AI 功能从同一份余额里扣。',
       monthly: '/ 月',
       hours: (h) => `每月 ${h} 小时人声`,
       perDay: (h) => perDayMin(h) >= 60 ? `约每天 ${asHours(perDayMin(h))} 小时对话` : `约每天 ${perDayMin(h)} 分钟对话`,
@@ -269,11 +269,11 @@ Dayweave is provided as is. Transcriptions and AI digests can be wrong; please v
 ## Dayweave Cloud subscriptions
 - Subscriptions (Lite, Plus, Pro, Max; monthly or yearly) renew automatically through the App Store or Google Play until cancelled. Manage or cancel them in your store account settings at least 24 hours before renewal.
 - Each plan includes a monthly amount of transcribed voice; yearly plans refill it every 30 days. Unused hours do not roll over. When the included hours are used up, cloud transcription pauses until the next refill.
-- Digests and reminders are included, subject to a fair-use limit of 120 AI requests per day.
+- Digests, reminders and assistant chats are included, subject to a fair-use limit of 80 AI requests per day.
 - Refunds are handled by Apple or Google under their policies.
 
 ## License codes
-A license code carries a fixed prepaid balance that is consumed by transcribed voice. Codes do not expire and cannot be topped up or refunded once used. Keep your code private — whoever holds it can use it.
+A license code carries a fixed prepaid balance that is consumed by transcribed voice and by AI features (digests, reminders, assistant chats). Codes do not expire and cannot be topped up or refunded once used. Keep your code private — whoever holds it can use it.
 
 ## Source code
 The Dayweave source is published under the PolyForm Strict License 1.0.0. It allows reading and personal non-commercial use, but not modification, redistribution or commercial use.
@@ -343,11 +343,11 @@ Everything Dayweave keeps about your life is on your phone; delete it in the app
 ## 拾日云订阅
 - 订阅（轻享、标准、专业、全天；月付或年付）通过 App Store 或 Google Play 自动续费，直到取消。请至少在续费前 24 小时在商店账号设置中管理或取消。
 - 每个方案包含每月一定时长的人声转写，年付每 30 天发放一次。未用完的时长不结转。时长用完后，云端转写暂停到下次发放。
-- 每日整理和提醒包含在内，合理使用上限为每天 120 次 AI 请求。
+- 每日整理、提醒和助手对话包含在内，合理使用上限为每天 80 次 AI 请求。
 - 退款由 Apple 或 Google 按其政策处理。
 
 ## 授权码
-授权码带有固定的预付额度，按转写的人声时长扣减。授权码不过期，不能充值，使用后不退款。请妥善保管：持有授权码的人都可以使用它。
+授权码带有固定的预付额度，按转写的人声时长和 AI 功能（整理、提醒、助手对话）的用量扣减。授权码不过期，不能充值，使用后不退款。请妥善保管：持有授权码的人都可以使用它。
 
 ## 源码
 拾日源码以 PolyForm Strict License 1.0.0 发布：允许阅读和个人非商业使用，不允许修改、再分发或商用。

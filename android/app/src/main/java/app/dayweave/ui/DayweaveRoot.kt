@@ -79,6 +79,7 @@ import app.dayweave.ui.motion.blossomIcon
 import app.dayweave.ui.screens.CaptureScreen
 import app.dayweave.ui.screens.SummaryScreen
 import app.dayweave.ui.screens.LedgerScreen
+import app.dayweave.ui.screens.VoicesScreen
 import app.dayweave.ui.screens.AssistantScreen
 import app.dayweave.ui.screens.ChatScreen
 import app.dayweave.ui.screens.ConversationScreen
@@ -124,6 +125,7 @@ private sealed interface Route {
     data object Service : Route
     data class Person(val id: String) : Route
     data object Ledger : Route
+    data object Voices : Route
     data class Assistant(val id: String) : Route
     data class Chat(val id: String) : Route
 }
@@ -149,6 +151,8 @@ class Navigator(
     val openTab: (Tab) -> Unit,
     val back: () -> Unit,
     val openLedger: () -> Unit = {},
+    /** 声纹整理。 */
+    val openVoices: () -> Unit = {},
     val openAssistant: (String) -> Unit = {},
     val openChat: (String) -> Unit = {},
     /** 新开一段助手对话；quote 是引用的内容，from 说明出处。 */
@@ -191,6 +195,7 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
         openTab = { tab = it },
         back = { if (stack.size > 1) stack = stack.dropLast(1) },
         openLedger = { stack = stack + Route.Ledger },
+        openVoices = { stack = stack + Route.Voices },
         openAssistant = { stack = stack + Route.Assistant(it) },
         openChat = { stack = stack + Route.Chat(it) },
         startChat = { assistant, quote, from -> stack = stack + Route.Chat(chatEngine.start(assistant, quote, from)) },
@@ -234,9 +239,9 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                     (slideInVertically(tween(460, easing = FastOutSlowInEasing)) { it / 5 } + fadeIn(tween(320))) togetherWith fadeOut(tween(220))
                                 initialState is Route.Enroll ->
                                     fadeIn(tween(300)) togetherWith (slideOutVertically(tween(380)) { it / 5 } + fadeOut(tween(260)))
-                                targetState is Route.Service || targetState is Route.Person || targetState is Route.Ledger || targetState is Route.Assistant || targetState is Route.Chat ->
+                                targetState is Route.Service || targetState is Route.Person || targetState is Route.Ledger || targetState is Route.Voices || targetState is Route.Assistant || targetState is Route.Chat ->
                                     (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith fadeOut(tween(200))
-                                initialState is Route.Service || initialState is Route.Person || initialState is Route.Ledger || initialState is Route.Assistant || initialState is Route.Chat ->
+                                initialState is Route.Service || initialState is Route.Person || initialState is Route.Ledger || initialState is Route.Voices || initialState is Route.Assistant || initialState is Route.Chat ->
                                     fadeIn(tween(300)) togetherWith (slideOutHorizontally(tween(360)) { it / 4 } + fadeOut(tween(240)))
                                 targetState is Route.Day && initialState is Route.Tabs ->
                                     (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 4 } + fadeIn(tween(320))) togetherWith
@@ -259,6 +264,7 @@ fun DayweaveRoot(actions: Actions, deepLinks: kotlinx.coroutines.flow.StateFlow<
                                 Route.Service -> ServiceScreen(nav, actions)
                                 is Route.Person -> PersonScreen(r.id, nav)
                                 Route.Ledger -> LedgerScreen(nav)
+                                Route.Voices -> VoicesScreen(nav)
                                 is Route.Assistant -> AssistantScreen(r.id, nav)
                                 is Route.Chat -> ChatScreen(r.id, nav)
                             }
@@ -378,6 +384,7 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
                 Route.Enroll -> "enroll"
                 Route.Service -> "service"
                 Route.Ledger -> "ledger"
+                Route.Voices -> "voices"
                 is Route.Assistant -> "a:${it.id}"
                 is Route.Chat -> "chat:${it.id}"
                 is Route.Conversation -> "c:${it.id}"
@@ -392,6 +399,7 @@ private val RouteSaver = androidx.compose.runtime.saveable.listSaver<List<Route>
                 it == "enroll" -> Route.Enroll
                 it == "service" -> Route.Service
                 it == "ledger" -> Route.Ledger
+                it == "voices" -> Route.Voices
                 it.startsWith("a:") -> Route.Assistant(it.removePrefix("a:"))
                 it.startsWith("chat:") -> Route.Chat(it.removePrefix("chat:"))
                 it.startsWith("c:") -> Route.Conversation(it.removePrefix("c:"))

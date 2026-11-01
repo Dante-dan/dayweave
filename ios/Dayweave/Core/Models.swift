@@ -84,9 +84,24 @@ struct DayDigest: Codable, Hashable {
     var followUps: [FollowUp]? = nil
     var insights: [Insight]? = nil
     var topics: [String]? = nil
+    var scenes: [LifeScene]? = nil
     var advice: [Advice]? = nil
     var sourceIds: [String]? = nil
     var generatedAt: Int64? = nil
+}
+
+/** 从对话反推的生活场景：在做什么、和谁一起。 */
+struct LifeScene: Codable, Hashable {
+    var title: String
+    var who: [String]? = nil
+    var time: String? = nil
+    var note: String? = nil
+    var segmentIds: [String]? = nil
+
+    var line: String {
+        let meta = [time, who?.joined(separator: tr("、", ", "))].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        return [title, note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: tr("：", ": ")) + (meta.isEmpty ? "" : "（\(meta)）")
+    }
 }
 
 /** 随身助手的一条建议：对话涉及育儿、健康、人际、理财、生活或人生体验时才出现。 */
@@ -95,6 +110,7 @@ struct Advice: Codable, Hashable {
     var title: String? = nil
     var text: String
     var basis: String? = nil
+    var scene: String? = nil
     var segmentIds: [String]? = nil
 
     var label: String {

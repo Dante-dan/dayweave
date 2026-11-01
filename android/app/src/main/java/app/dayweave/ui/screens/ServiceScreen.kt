@@ -173,7 +173,8 @@ private fun CloudPanel() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            tr("转写 ${e.seconds} 秒人声", "Transcribed ${e.seconds}s of voice"),
+                            if (e.kind == "assist") tr("AI 整理、提醒与助手对话", "AI digests, reminders and chats")
+                            else tr("转写 ${e.seconds} 秒人声", "Transcribed ${e.seconds}s of voice"),
                             style = Type.Body,
                         )
                         Text(stamp(e.at), style = Type.Micro)
@@ -241,7 +242,7 @@ private fun PricingCard(p: CloudPricing) {
         }
         Text(
             tr("只按真正送去转写的人声时长计费。静音、环境音在手机上就被过滤掉；听音乐、播客和看视频的声音不录、不收费。", "You only pay for voice that's actually transcribed. Silence and room noise are filtered on the phone; music, podcasts and videos are never recorded or charged. ") +
-                tr("每日整理和主动提醒不另外收费。", "Daily digests and reminders are included."),
+                tr("订阅已包含每日整理、主动提醒和助手对话；授权码的这些 AI 功能按实际用量从余额里扣，通常远少于转写。", "Subscriptions include digests, reminders and assistant chats. With a license code they draw on the balance by actual use, usually far less than transcription."),
             style = Type.Caption,
         )
     }

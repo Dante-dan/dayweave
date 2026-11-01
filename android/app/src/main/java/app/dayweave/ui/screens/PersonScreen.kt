@@ -143,6 +143,11 @@ fun PersonScreen(id: String, nav: Navigator) {
                         Action(Icons.Outlined.MergeType, tr("和别人是同一个人", "Same person as…")) { merging = true }
                     }
                     Text(
+                        tr("声纹太多太乱？去声纹整理", "Too many voices? Tidy them"),
+                        style = Type.Caption.copy(color = Ink.Primary, fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.padding(top = 10.dp).clip(RoundedCornerShape(50)).pressable(nav.openVoices, scaleTo = 0.94f).padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                    Text(
                         tr("名字和声纹只存在这台手机上。之后听到同样的声音，会自动认出是 ${person.name}。", "Names and voiceprints stay on this phone. Next time this voice is heard, it will be recognized as ${person.name}."),
                         style = Type.Micro, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp),
                     )
@@ -163,7 +168,11 @@ fun PersonScreen(id: String, nav: Navigator) {
     }
 
     if (merging) {
-        val targets = people.values.filter { it.id != id && (it.id != OWNER_ID || enrolled) }
+        // 按声纹相似度排序：最像的人排在最前面
+        val targets = remember(people, id) {
+            people.values.filter { it.id != id && (it.id != OWNER_ID || enrolled) }
+                .map { it to graph.voice.similarity(id, it.id) }.sortedByDescending { it.second }
+        }
         ModalBottomSheet(
             onDismissRequest = { merging = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -174,7 +183,7 @@ fun PersonScreen(id: String, nav: Navigator) {
                 Text(tr("${person.name} 其实是…", "${person.name} is actually…"), style = Type.Title, modifier = Modifier.padding(horizontal = 6.dp))
                 Text(tr("合并后，两种声音都会认作同一个人，以前的对话也会一起改过来。", "After merging, both voices count as one person, and past conversations are updated too."), style = Type.Caption, modifier = Modifier.padding(6.dp))
                 Column(Modifier.padding(top = 8.dp).glass(RoundedCornerShape(24.dp), elevation = 4.dp)) {
-                    targets.forEach { t ->
+                    targets.forEach { (t, score) ->
                         Row(
                             Modifier.fillMaxWidth().pressable({
                                 merging = false
@@ -186,7 +195,8 @@ fun PersonScreen(id: String, nav: Navigator) {
                         ) {
                             Avatar(t, 40.dp)
                             Spacer(Modifier.width(12.dp))
-                            Text(t.name, style = Type.Headline)
+                            Text(t.name, style = Type.Headline, modifier = Modifier.weight(1f))
+                            if (score >= 0.42f) Text(tr("声音很像", "Sounds alike"), style = Type.Micro.copy(color = Ink.Accent))
                         }
                     }
                     if (targets.isEmpty()) Text(tr("还没有其他人", "No one else yet"), style = Type.Caption, modifier = Modifier.padding(20.dp))

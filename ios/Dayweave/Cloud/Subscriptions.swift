@@ -8,7 +8,7 @@ enum Plan: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     func productId(yearly: Bool) -> String { "app.dayweave.cloud.\(rawValue).\(yearly ? "yearly" : "monthly")" }
-    var hours: Int { switch self { case .lite: 5; case .plus: 30; case .pro: 100; case .max: 280 } }
+    var hours: Int { switch self { case .lite: 5; case .plus: 30; case .pro: 70; case .max: 180 } }
     /** 年付 = 10 个月的价格；专业和全天只有月付（App Store 订阅单价上限 $1,000）。 */
     var hasYearly: Bool { self == .lite || self == .plus }
     func usd(yearly: Bool) -> String {

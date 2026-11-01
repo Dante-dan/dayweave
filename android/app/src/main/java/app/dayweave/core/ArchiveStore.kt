@@ -56,6 +56,26 @@ class ArchiveStore(root: File) {
         }
     }
 
+    /** 一次改多个说话人（声纹整理批量合并时用），每个片段只写一次。 */
+    @Synchronized
+    fun reassignSpeakers(map: Map<String, String>) {
+        if (map.isEmpty()) return
+        val changed = _segments.value.filter { s -> s.turns.any { it.speakerId in map } }.associate { s ->
+            val turns = s.turns.map { t -> map[t.speakerId]?.let { t.copy(speakerId = it) } ?: t }
+            // 合并后相邻的同一个人连成一段
+            val joined = turns.fold(mutableListOf<Turn>()) { acc, t ->
+                val last = acc.lastOrNull()
+                if (last != null && last.speakerId == t.speakerId && t.startMs - last.endMs <= 1_200L) acc[acc.lastIndex] = last.copy(endMs = t.endMs, text = app.dayweave.transcribe.joinText(last.text, t.text))
+                else acc += t
+                acc
+            }
+            val next = s.copy(turns = joined)
+            segmentFiles.write(next)
+            s.id to next
+        }
+        _segments.update { list -> list.map { changed[it.id] ?: it } }
+    }
+
     @Synchronized
     fun deleteAll() {
         segmentFiles.clear()
